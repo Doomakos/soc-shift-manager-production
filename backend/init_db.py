@@ -3,23 +3,47 @@ SOC Shift Manager - Database Initialization Script
 This script initializes the database with sample data for testing.
 """
 
+import os
 import random
 from datetime import datetime, timedelta
+from werkzeug.security import generate_password_hash
 
-from app import Analyst, PayRule, Shift, app, db
+from app import Analyst, PayRule, Shift, User, app, db
 
 
 def init_sample_data():
-    """Initialize database with sample data"""
+    """Initialize database with sample data and admin user"""
 
     with app.app_context():
         # Create tables
         db.create_all()
 
-        # Clear existing data (for fresh start)
-        PayRule.query.delete()
-        Shift.query.delete()
-        Analyst.query.delete()
+        # Check if already initialized
+        existing_user = User.query.first()
+        if existing_user:
+            print("⚠️  Database already initialized. Skipping...")
+            return
+
+        print("🚀 Initializing database with sample data...")
+
+        # Create admin user from environment variables
+        admin_username = os.getenv('ADMIN_USERNAME', 'admin')
+        admin_password = os.getenv('ADMIN_PASSWORD', 'Admin123!')
+        admin_email = os.getenv('ADMIN_EMAIL', 'admin@soc.local')
+
+        admin_user = User(
+            username=admin_username,
+            email=admin_email,
+            password_hash=generate_password_hash(admin_password),
+            role='admin',
+            is_active=True,
+            force_password_change=False,
+            created_at=datetime.utcnow()
+        )
+        db.session.add(admin_user)
+        db.session.flush()  # Get the user ID
+
+        print(f"✓ Created admin user: {admin_username}")
 
         # Create Greek labor law pay rules
         pay_rules = [
@@ -48,35 +72,35 @@ def init_sample_data():
                 rule_name="Sunday Night",
                 rule_type="sunday_night",
                 multiplier=2.00,
-                description="Sunday night (22:00-06:00)",
+                description="Sunday night hours (22:00-06:00)",
                 active=True,
             ),
             PayRule(
-                rule_name="Holiday Day",
-                rule_type="holiday_day",
+                rule_name="Saturday Day",
+                rule_type="saturday_day",
+                multiplier=1.50,
+                description="Saturday daytime (06:00-22:00)",
+                active=True,
+            ),
+            PayRule(
+                rule_name="Saturday Night",
+                rule_type="saturday_night",
                 multiplier=1.75,
-                description="Holiday daytime (06:00-22:00)",
+                description="Saturday night hours (22:00-06:00)",
                 active=True,
             ),
             PayRule(
-                rule_name="Holiday Night",
-                rule_type="holiday_night",
+                rule_name="Public Holiday Day",
+                rule_type="holiday_day",
                 multiplier=2.00,
-                description="Holiday night (22:00-06:00)",
+                description="Public holiday daytime",
                 active=True,
             ),
             PayRule(
-                rule_name="Sixth Day",
-                rule_type="sixth_day",
-                multiplier=1.30,
-                description="6th consecutive work day daytime",
-                active=True,
-            ),
-            PayRule(
-                rule_name="Sixth Night",
-                rule_type="sixth_night",
-                multiplier=1.55,
-                description="6th consecutive work day night",
+                rule_name="Public Holiday Night",
+                rule_type="holiday_night",
+                multiplier=2.25,
+                description="Public holiday night hours",
                 active=True,
             ),
         ]
@@ -84,92 +108,155 @@ def init_sample_data():
         for rule in pay_rules:
             db.session.add(rule)
 
-        # Create sample analysts with monthly salary
-        analysts_data = [
-            {
-                "employee_id": "SOC001",
-                "first_name": "John",
-                "last_name": "Smith",
-                "email": "john.smith@company.com",
-                "monthly_salary": 3700.00,
-                "daily_hours": 8.0,
-            },
-            {
-                "employee_id": "SOC002",
-                "first_name": "Maria",
-                "last_name": "Garcia",
-                "email": "maria.garcia@company.com",
-                "monthly_salary": 3500.00,
-                "daily_hours": 8.0,
-            },
-            {
-                "employee_id": "SOC003",
-                "first_name": "Ahmed",
-                "last_name": "Hassan",
-                "email": "ahmed.hassan@company.com",
-                "monthly_salary": 3800.00,
-                "daily_hours": 8.0,
-            },
-            {
-                "employee_id": "SOC004",
-                "first_name": "Sofia",
-                "last_name": "Novak",
-                "email": "sofia.novak@company.com",
-                "monthly_salary": 3600.00,
-                "daily_hours": 8.0,
-            },
+        print(f"✓ Created {len(pay_rules)} pay rules")
+
+        # Create sample analysts
+        analysts = [
+            Analyst(
+                employee_id="SOC001",
+                first_name="John",
+                last_name="Smith",
+                email="john.smith@soc.local",
+                base_hourly_rate=15.00,
+                status="active",
+                created_by=admin_user.id
+            ),
+            Analyst(
+                employee_id="SOC002",
+                first_name="Maria",
+                last_name="Garcia",
+                email="maria.garcia@soc.local",
+                base_hourly_rate=16.50,
+                status="active",
+                created_by=admin_user.id
+            ),
+            Analyst(
+                employee_id="SOC003",
+                first_name="Ahmed",
+                last_name="Hassan",
+                email="ahmed.hassan@soc.local",
+                base_hourly_rate=15.75,
+                status="active",
+                created_by=admin_user.id
+            ),
+            Analyst(
+                employee_id="SOC004",
+                first_name="Sophie",
+                last_name="Laurent",
+                email="sophie.laurent@soc.local",
+                base_hourly_rate=17.00,
+                status="active",
+                created_by=admin_user.id
+            ),
+            Analyst(
+                employee_id="SOC005",
+                first_name="David",
+                last_name="Chen",
+                email="david.chen@soc.local",
+                base_hourly_rate=16.00,
+                status="active",
+                created_by=admin_user.id
+            ),
+            Analyst(
+                employee_id="SOC006",
+                first_name="Emma",
+                last_name="Wilson",
+                email="emma.wilson@soc.local",
+                base_hourly_rate=15.50,
+                status="active",
+                created_by=admin_user.id
+            ),
+            Analyst(
+                employee_id="SOC007",
+                first_name="Raj",
+                last_name="Patel",
+                email="raj.patel@soc.local",
+                base_hourly_rate=16.75,
+                status="active",
+                created_by=admin_user.id
+            ),
+            Analyst(
+                employee_id="SOC008",
+                first_name="Anna",
+                last_name="Kowalski",
+                email="anna.kowalski@soc.local",
+                base_hourly_rate=15.25,
+                status="active",
+                created_by=admin_user.id
+            ),
+            Analyst(
+                employee_id="SOC009",
+                first_name="Carlos",
+                last_name="Rodriguez",
+                email="carlos.rodriguez@soc.local",
+                base_hourly_rate=17.50,
+                status="active",
+                created_by=admin_user.id
+            ),
+            Analyst(
+                employee_id="SOC010",
+                first_name="Yuki",
+                last_name="Tanaka",
+                email="yuki.tanaka@soc.local",
+                base_hourly_rate=16.25,
+                status="active",
+                created_by=admin_user.id
+            ),
+            Analyst(
+                employee_id="SOC011",
+                first_name="Fatima",
+                last_name="Al-Rashid",
+                email="fatima.alrashid@soc.local",
+                base_hourly_rate=15.80,
+                status="active",
+                created_by=admin_user.id
+            ),
+            Analyst(
+                employee_id="SOC012",
+                first_name="Michael",
+                last_name="O'Brien",
+                email="michael.obrien@soc.local",
+                base_hourly_rate=16.90,
+                status="active",
+                created_by=admin_user.id
+            ),
         ]
 
-        analysts = []
-        for data in analysts_data:
-            # Calculate base_hourly_rate from monthly_salary
-            monthly_salary = data["monthly_salary"]
-            daily_hours = data["daily_hours"]
-            base_hourly_rate = (monthly_salary / 25) / daily_hours
-            
-            analyst = Analyst(
-                employee_id=data["employee_id"],
-                first_name=data["first_name"],
-                last_name=data["last_name"],
-                email=data["email"],
-                monthly_salary=monthly_salary,
-                base_hourly_rate=base_hourly_rate,
-                daily_hours=daily_hours,
-                status="active"
-            )
-            analysts.append(analyst)
+        for analyst in analysts:
             db.session.add(analyst)
 
-        db.session.flush()  # Flush to get analyst IDs
+        db.session.flush()  # Ensure analysts have IDs
+        print(f"✓ Created {len(analysts)} sample analysts")
 
-        # Import calculate_shift_pay function
-        from app import calculate_shift_pay
+        # Create sample shifts for the last 90 days
+        end_date = datetime.now().date()
+        start_date = end_date - timedelta(days=90)
 
-        # Create sample shifts (last 30 days)
-        shift_types = ["morning", "afternoon", "night", "day_off", "approved_leave"]
-        shift_templates = {
-            "morning": ("06:00:00", "14:00:00"),
-            "afternoon": ("14:00:00", "22:00:00"),
-            "night": ("22:00:00", "06:00:00"),
+        shift_types = ['morning', 'afternoon', 'night', 'standard']
+        shift_configs = {
+            'morning': ('06:00:00', '14:00:00'),
+            'afternoon': ('14:00:00', '22:00:00'),
+            'night': ('22:00:00', '06:00:00'),
+            'standard': ('09:00:00', '17:00:00'),
         }
-        
-        for i in range(60):  # 60 shifts across all analysts
-            analyst = random.choice(analysts)
-            shift_date = datetime.now().date() - timedelta(days=random.randint(1, 30))
-            shift_type = random.choice(shift_types)
-            
-            # Set times based on shift type
-            if shift_type == "day_off" or shift_type == "approved_leave":
-                start_time = datetime.strptime("00:00:00", "%H:%M:%S").time()
-                end_time = datetime.strptime("00:00:00", "%H:%M:%S").time()
-            else:
-                start_str, end_str = shift_templates.get(shift_type, ("06:00:00", "14:00:00"))
-                start_time = datetime.strptime(start_str, "%H:%M:%S").time()
-                end_time = datetime.strptime(end_str, "%H:%M:%S").time()
 
-            # Calculate pay using new Greek labor law system
-            pay_calc = calculate_shift_pay(
-                analyst.id,
+        # Generate ~60 shifts across all analysts
+        num_shifts = 60
+        print(f"🔄 Generating {num_shifts} sample shifts...")
+
+        for i in range(num_shifts):
+            analyst = random.choice(analysts)
+            shift_date = start_date + timedelta(days=random.randint(0, 90))
+            shift_type = random.choice(shift_types)
+            start_time_str, end_time_str = shift_configs[shift_type]
+
+            # Parse times
+            start_time = datetime.strptime(start_time_str, '%H:%M:%S').time()
+            end_time = datetime.strptime(end_time_str, '%H:%M:%S').time()
+
+            # Calculate hours and pay based on Greek labor law
+            pay_calc = calculate_greek_pay(
+                analyst.base_hourly_rate,
                 shift_date,
                 start_time,
                 end_time,
@@ -188,14 +275,76 @@ def init_sample_data():
                 base_pay=pay_calc['base_pay'],
                 total_pay=pay_calc['total_pay'],
                 notes=f"Sample shift #{i+1}",
+                created_by=admin_user.id
             )
             db.session.add(shift)
 
         db.session.commit()
-        print("✅ Database initialized with sample data!")
-        print(f"   - Created {len(analysts)} analysts")
-        print(f"   - Created {len(pay_rules)} pay rules")
-        print(f"   - Created 60 sample shifts")
+        
+        print("\n" + "="*60)
+        print("✅ DATABASE INITIALIZED SUCCESSFULLY!")
+        print("="*60)
+        print(f"\n📊 Summary:")
+        print(f"   - Admin User: {admin_username}")
+        print(f"   - Sample Analysts: {len(analysts)}")
+        print(f"   - Pay Rules: {len(pay_rules)}")
+        print(f"   - Sample Shifts: {num_shifts}")
+        print(f"\n🔑 Default Login Credentials:")
+        print(f"   Username: {admin_username}")
+        print(f"   Password: {admin_password}")
+        print(f"   Email: {admin_email}")
+        print(f"\n⚠️  IMPORTANT: Change the admin password after first login!")
+        print("="*60 + "\n")
+
+
+def calculate_greek_pay(base_rate, shift_date, start_time, end_time, shift_type):
+    """
+    Calculate pay according to Greek labor law
+    - Normal weekday: 1.0x
+    - Saturday day (06:00-22:00): 1.5x
+    - Saturday night (22:00-06:00): 1.75x
+    - Sunday day (06:00-22:00): 1.75x
+    - Sunday night (22:00-06:00): 2.0x
+    - Night hours (22:00-06:00): additional 25% on weekdays
+    """
+    
+    # Calculate total hours
+    start_datetime = datetime.combine(shift_date, start_time)
+    end_datetime = datetime.combine(shift_date, end_time)
+    
+    # Handle overnight shifts
+    if end_time < start_time:
+        end_datetime += timedelta(days=1)
+    
+    total_hours = (end_datetime - start_datetime).total_seconds() / 3600
+    
+    # Determine multiplier based on day and time
+    day_of_week = shift_date.weekday()  # 0=Monday, 6=Sunday
+    
+    if day_of_week == 6:  # Sunday
+        if shift_type == 'night':
+            multiplier = 2.00
+        else:
+            multiplier = 1.75
+    elif day_of_week == 5:  # Saturday
+        if shift_type == 'night':
+            multiplier = 1.75
+        else:
+            multiplier = 1.50
+    elif shift_type == 'night':  # Weekday night
+        multiplier = 1.25
+    else:  # Normal weekday
+        multiplier = 1.00
+    
+    base_pay = total_hours * base_rate
+    total_pay = base_pay * multiplier
+    
+    return {
+        'total_hours': round(total_hours, 2),
+        'avg_multiplier': multiplier,
+        'base_pay': round(base_pay, 2),
+        'total_pay': round(total_pay, 2)
+    }
 
 
 if __name__ == "__main__":

@@ -9,10 +9,18 @@ services:
     ports:
       - "5000:5000"
     environment:
-      - FLASK_ENV=development
+      - FLASK_ENV=${FLASK_ENV:-production}
       - FLASK_RUN_HOST=0.0.0.0
+      - SECRET_KEY=${SECRET_KEY:-change-this-secret-key-in-production}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-change-this-jwt-secret-in-production}
+      - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-Admin123!}
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-admin@soc.local}
+    volumes:
+      - backend-data:/app/instance
     networks:
       - soc-network
+    restart: unless-stopped
 
   frontend:
     build:
@@ -30,7 +38,12 @@ services:
       - soc-network
     stdin_open: true
     tty: true
+    restart: unless-stopped
 
 networks:
   soc-network:
     driver: bridge
+
+volumes:
+  backend-data:
+    driver: local

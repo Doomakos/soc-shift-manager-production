@@ -1,266 +1,483 @@
-# SOC Shift Manager
+# 🛡️ SOC Shift Manager
 
-A comprehensive application for managing SOC Level 1 analyst shifts, tracking hours, and calculating premium pay for special days (Sundays +75%, Saturdays +50%, etc.).
+> **Production-Ready** shift management system for SOC Level 1 analysts with automated premium pay calculation according to Greek labor law.
 
-## 🎯 Features
-
-- **Analyst Management**: Register and manage SOC Level 1 analysts with base hourly rates
-- **Shift Assignment**: Assign shifts to analysts with automatic time tracking
-- **Historical Data**: Complete shift history with timestamps and duration
-- **Premium Pay Calculation**: Automatic calculation of pay multipliers for Sundays (+75%), Saturdays (+50%), and other configurable days
-- **Analytics & Reports**: Individual and team-wide summaries of hours worked and earnings
-- **Customizable Pay Rules**: Configure pay multipliers for any day or special occasion
-
-## 📋 Tech Stack
-
-### Backend
-- **Framework**: Flask (Python)
-- **Database**: SQLAlchemy ORM (SQLite by default, supports PostgreSQL)
-- **API**: RESTful API with CORS support
-
-### Frontend
-- **Framework**: React 18
-- **Routing**: React Router v6
-- **Styling**: Tailwind CSS
-- **HTTP Client**: Axios
-- **Icons**: Lucide React
-
-## 🚀 Quick Start
-
-### Option 1: Docker (Recommended for Easy Setup) 🐳
-
-The easiest way to run the application with sample data:
-
-```bash
-# Clone and run
-git clone https://github.com/Doomakos/soc-shift-manager-docker.git
-cd soc-shift-manager-docker
-docker-compose up --build
-```
-
-**That's it!** Access the app at:
-- Frontend: http://localhost:3000
-- Backend API: http://localhost:5000
-
-The application will automatically initialize with sample data including 12 analysts and 90 days of shift history.
-
-📖 **See [DOCKER_SETUP.md](DOCKER_SETUP.md) for detailed Docker instructions**
-
-### Option 2: Manual Setup (For Development)
-
-#### Prerequisites
-- Python 3.8+
-- Node.js 14+
-- npm or yarn
-
-#### Backend Setup
-
-```bash
-cd backend
-pip install -r requirements.txt
-python init_db.py  # Initialize with sample data
-python app.py
-```
-
-The backend will start on `http://localhost:5000`
-
-#### Frontend Setup
-
-```bash
-cd frontend
-npm install
-npm start
-```
-
-The frontend will start on `http://localhost:3000`
-
-## 📚 API Endpoints
-
-### Analysts
-- `GET /api/analysts` - Get all analysts
-- `POST /api/analysts` - Create new analyst
-- `GET /api/analysts/<id>` - Get analyst by ID
-- `PUT /api/analysts/<id>` - Update analyst
-- `DELETE /api/analysts/<id>` - Delete analyst
-
-### Shifts
-- `GET /api/shifts` - Get all shifts (with filters)
-- `POST /api/shifts` - Create new shift
-- `GET /api/shifts/<id>` - Get shift by ID
-- `PUT /api/shifts/<id>` - Update shift
-- `DELETE /api/shifts/<id>` - Delete shift
-
-Query parameters for shifts:
-- `analyst_id` - Filter by analyst
-- `start_date` - Filter by start date (YYYY-MM-DD)
-- `end_date` - Filter by end date (YYYY-MM-DD)
-
-### Pay Rules
-- `GET /api/pay-rules` - Get all active pay rules
-- `POST /api/pay-rules` - Create new pay rule
-- `PUT /api/pay-rules/<id>` - Update pay rule
-
-### Analytics
-- `GET /api/analytics/analyst-summary/<id>` - Get summary for specific analyst
-- `GET /api/analytics/team-summary` - Get summary for entire team
-
-Query parameters:
-- `start_date` - Start date filter
-- `end_date` - End date filter
-
-## 💾 Database Models
-
-### Analyst
-```
-- id: Primary Key
-- employee_id: Unique identifier (e.g., SOC001)
-- first_name: Analyst first name
-- last_name: Analyst last name
-- email: Contact email
-- base_hourly_rate: Base hourly rate in EUR
-- status: active/inactive/on_leave
-- created_at: Creation timestamp
-```
-
-### Shift
-```
-- id: Primary Key
-- analyst_id: Foreign Key to Analyst
-- shift_date: Date of the shift
-- start_time: Start time
-- end_time: End time
-- shift_type: morning/afternoon/night/standard
-- hours_worked: Calculated automatically
-- pay_multiplier: Applied based on day of week
-- base_pay: Hours × Base Rate
-- total_pay: Base Pay × Multiplier
-- notes: Optional notes
-```
-
-### PayRule
-```
-- id: Primary Key
-- rule_name: Name of the rule
-- day_of_week: 0-6 (Monday=0, Sunday=6) or NULL for default
-- multiplier: Pay multiplier (e.g., 1.75 for +75%)
-- description: Rule description
-- active: Boolean flag
-```
-
-## 🧮 Pay Multiplier Logic
-
-The system automatically applies pay multipliers based on the shift date:
-- **Sunday (default)**: 1.75x (75% premium)
-- **Saturday (default)**: 1.5x (50% premium)
-- **Weekdays (default)**: 1.0x (regular pay)
-
-You can customize these rules through the Pay Rules management interface.
-
-### Example Calculation
-- Analyst: John Smith
-- Base Rate: €15/hour
-- Shift: Sunday, 8 hours
-- Calculation:
-  - Base Pay: 8h × €15 = €120
-  - Multiplier: 1.75x (Sunday)
-  - **Total Pay: €120 × 1.75 = €210**
-
-## 📊 Dashboard Features
-
-1. **Home Dashboard**: Quick overview and navigation
-2. **Analyst Management**: CRUD operations for analysts
-3. **Shift Management**: Assign shifts with filters by analyst and date range
-4. **Analytics**: Individual and team summaries with earnings reports
-5. **Pay Rules**: Configure premium pay multipliers
-
-## 🔧 Configuration
-
-### Database
-By default, SQLite is used. To use PostgreSQL:
-
-Create a `.env` file in the backend directory:
-```
-DATABASE_URL=postgresql://user:password@localhost/soc_shift_manager
-```
-
-### API Base URL
-In frontend, create `.env`:
-```
-REACT_APP_API_URL=http://localhost:5000/api
-```
-
-## 📝 Example Workflow
-
-1. **Add Analysts**
-   - Navigate to Analysts → Add Analyst
-   - Enter: Employee ID, Name, Email, Base Hourly Rate
-
-2. **Configure Pay Rules** (Optional)
-   - Navigate to Pay Rules
-   - Default rules (Sunday +75%, Saturday +50%) are pre-configured
-
-3. **Assign Shifts**
-   - Navigate to Shifts → Assign Shift
-   - Select analyst, date, start/end times
-   - System calculates hours and applies multipliers automatically
-
-4. **View Reports**
-   - Individual analyst: Analytics → Select Analyst
-   - Team summary: Analytics → Team Summary
-   - Filter by date range
-
-## 🛠️ Development
-
-### Backend Development
-```bash
-cd backend
-pip install -r requirements.txt
-export FLASK_ENV=development
-python app.py
-```
-
-### Frontend Development
-```bash
-cd frontend
-npm install
-npm start
-```
-
-## 📦 Deployment
-
-### Backend (Gunicorn + Flask)
-```bash
-pip install gunicorn
-gunicorn -w 4 -b 0.0.0.0:5000 app:app
-```
-
-### Frontend (Production Build)
-```bash
-npm run build
-# Deploy the build/ folder to a web server
-```
-
-## 🤝 Contributing
-
-Feel free to fork and submit pull requests!
-
-## 📄 License
-
-This project is provided as-is for SOC shift management purposes.
-
-## 📞 Support
-
-For issues or questions, please refer to the application documentation or contact your development team.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Docker](https://img.shields.io/badge/Docker-Ready-blue.svg)]()
+[![React](https://img.shields.io/badge/React-18-blue.svg)]()
+[![Flask](https://img.shields.io/badge/Flask-2.3-green.svg)]()
 
 ---
 
-## 📢 Public Repository Notice
+## 🚀 Quick Start
 
-This is the **public Docker version** for easy deployment and sharing. 
+**Get running in 3 minutes!** See [QUICKSTART.md](QUICKSTART.md) for step-by-step instructions.
 
-- ✅ Ready to run with `docker-compose up`
-- ✅ Includes sample data
-- ✅ Perfect for testing and demos
-- ❌ Does not include production data
+```bash
+git clone https://github.com/Doomakos/soc-shift-manager-production.git
+cd soc-shift-manager-production
+docker-compose up --build
+```
 
-See [PUBLIC_REPO.md](PUBLIC_REPO.md) for details.
+Then open http://localhost:3000 and login with:
+- **Username:** `admin`
+- **Password:** `Admin123!`
+
+---
+
+## 📋 Table of Contents
+
+- [Features](#-features)
+- [Prerequisites](#-prerequisites)
+- [Installation](#-installation)
+- [Configuration](#-configuration)
+- [Usage](#-usage)
+- [API Reference](#-api-reference)
+- [Tech Stack](#-tech-stack)
+- [Security](#-security)
+- [Deployment](#-deployment)
+- [Contributing](#-contributing)
+
+---
+
+## ✨ Features
+
+### Core Functionality
+- ✅ **Analyst Management** - Register, edit, and manage SOC Level 1 analyst profiles
+- ✅ **Shift Assignment** - Create and assign shifts with automatic time tracking
+- ✅ **Premium Pay Calculation** - Automatic calculation based on Greek labor law:
+  - Sundays: **+75%** (1.75x)
+  - Saturdays: **+50%** (1.50x)
+  - Night shifts: **+25%** (1.25x)
+  - Public holidays: **up to +125%** (2.25x)
+- ✅ **Historical Data** - Complete audit trail of all shifts and payments
+- ✅ **Analytics & Reports** - Individual and team-wide summaries
+- ✅ **Customizable Pay Rules** - Configure multipliers for any day or shift type
+
+### Security & Access
+- 🔐 JWT-based authentication
+- 👥 Role-based access control (Admin/User)
+- 🔑 Secure password management
+- 📝 Activity logging
+
+### User Experience
+- 📱 Responsive design (works on desktop, tablet, mobile)
+- 🌙 Clean, modern UI with Tailwind CSS
+- ⚡ Fast performance with React 18
+- 📊 Real-time dashboard updates
+
+---
+
+## 📦 Prerequisites
+
+### Required
+- **Docker Desktop** (recommended) OR:
+- Python 3.8+ and Node.js 14+ (for manual setup)
+
+### Optional
+- PostgreSQL (for production deployments)
+- Git (for version control)
+
+---
+
+## 🔧 Installation
+
+### Method 1: Docker (Recommended)
+
+```bash
+# Clone the repository
+git clone https://github.com/Doomakos/soc-shift-manager-production.git
+cd soc-shift-manager-production
+
+# Start the application
+docker-compose up --build
+```
+
+**That's it!** The application will:
+- Build Docker containers
+- Initialize the database
+- Create an admin account
+- Load sample data (12 analysts, 60 shifts)
+- Start on http://localhost:3000
+
+### Method 2: Manual Setup
+
+<details>
+<summary>Click to expand manual setup instructions</summary>
+
+#### Backend
+
+```bash
+cd backend
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+pip install -r requirements.txt
+python init_db.py  # Initialize database with sample data
+python app.py
+```
+
+Backend runs on **http://localhost:5000**
+
+#### Frontend
+
+```bash
+cd frontend
+npm install
+npm start
+```
+
+Frontend runs on **http://localhost:3000**
+
+</details>
+
+---
+
+## ⚙️ Configuration
+
+### Environment Variables
+
+Copy the example environment file:
+
+```bash
+cp .env.example .env
+```
+
+Key variables to configure:
+
+```env
+# Admin Account (change these!)
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=YourSecurePassword123!
+ADMIN_EMAIL=admin@yourcompany.com
+
+# Security Keys (generate unique values!)
+SECRET_KEY=your-secret-key-here
+JWT_SECRET_KEY=your-jwt-secret-here
+
+# Database (optional - defaults to SQLite)
+# DATABASE_URL=postgresql://user:pass@localhost/dbname
+```
+
+**⚠️ Important:** Generate secure secret keys:
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+
+For complete configuration options, see [.env.example](.env.example).
+
+---
+
+## 📖 Usage
+
+### First Login
+
+1. Navigate to **http://localhost:3000**
+2. Login with default credentials:
+   - Username: `admin`
+   - Password: `Admin123!`
+3. **Change your password immediately!**
+   - Go to Profile → Change Password
+
+### Common Tasks
+
+#### Add an Analyst
+
+1. Navigate to **Analysts** → **Add Analyst**
+2. Enter:
+   - Employee ID (e.g., SOC013)
+   - Name and email
+   - Base hourly rate (in EUR)
+3. Click **Save**
+
+#### Assign a Shift
+
+1. Navigate to **Shifts** → **Assign Shift**
+2. Select:
+   - Analyst
+   - Date and times
+   - Shift type (morning/afternoon/night/standard)
+3. System automatically calculates:
+   - Hours worked
+   - Premium multiplier
+   - Total pay
+
+#### View Analytics
+
+1. **Individual**: Analytics → Select Analyst
+2. **Team Summary**: Analytics → Team Summary
+3. Filter by date range to see specific periods
+
+### Sample Data
+
+The application initializes with:
+- **12 sample analysts** (SOC001-SOC012)
+- **8 pay rules** (Greek labor law compliant)
+- **60 sample shifts** (last 90 days)
+
+You can delete sample data and add your own, or continue using it for testing.
+
+---
+
+## 🔌 API Reference
+
+### Authentication
+
+```bash
+# Login
+POST /api/auth/login
+Content-Type: application/json
+{
+  "username": "admin",
+  "password": "Admin123!"
+}
+
+# Returns:
+{
+  "access_token": "eyJ0eXAiOiJKV1QiLCJhbGc...",
+  "refresh_token": "eyJ0eXAiOiJKV1QiLCJhbGc...",
+  "user": { ... }
+}
+```
+
+### Analysts
+
+```bash
+# Get all analysts
+GET /api/analysts
+Authorization: Bearer <token>
+
+# Create analyst
+POST /api/analysts
+Authorization: Bearer <token>
+Content-Type: application/json
+{
+  "employee_id": "SOC013",
+  "first_name": "Jane",
+  "last_name": "Doe",
+  "email": "jane.doe@soc.local",
+  "base_hourly_rate": 16.00
+}
+```
+
+### Shifts
+
+```bash
+# Get shifts (with filters)
+GET /api/shifts?analyst_id=1&start_date=2024-01-01&end_date=2024-01-31
+Authorization: Bearer <token>
+
+# Create shift
+POST /api/shifts
+Authorization: Bearer <token>
+Content-Type: application/json
+{
+  "analyst_id": 1,
+  "shift_date": "2024-03-23",
+  "start_time": "09:00:00",
+  "end_time": "17:00:00",
+  "shift_type": "standard"
+}
+```
+
+### Analytics
+
+```bash
+# Analyst summary
+GET /api/analytics/analyst-summary/1?start_date=2024-01-01&end_date=2024-12-31
+Authorization: Bearer <token>
+
+# Team summary
+GET /api/analytics/team-summary?start_date=2024-01-01
+Authorization: Bearer <token>
+```
+
+For complete API documentation, see [backend/README.md](backend/README.md).
+
+---
+
+## 🛠️ Tech Stack
+
+### Backend
+- **Framework:** Flask 2.3
+- **ORM:** SQLAlchemy
+- **Database:** SQLite (default) / PostgreSQL (production)
+- **Authentication:** Flask-JWT-Extended
+- **CORS:** Flask-CORS
+
+### Frontend
+- **Framework:** React 18.2
+- **Router:** React Router v6
+- **Styling:** Tailwind CSS 3
+- **HTTP Client:** Axios
+- **Icons:** Lucide React
+
+### DevOps
+- **Containerization:** Docker & Docker Compose
+- **Web Server:** Flask dev server (development) / Gunicorn (production)
+- **Database:** Named Docker volumes for persistence
+
+---
+
+## 🔒 Security
+
+### Authentication
+- JWT tokens with refresh mechanism
+- Secure password hashing (bcrypt)
+- Token expiration (1 hour access, 30 days refresh)
+
+### Best Practices
+- ✅ CORS configured for specific origins
+- ✅ SQL injection prevention (SQLAlchemy ORM)
+- ✅ XSS protection (React escaping)
+- ✅ Secrets via environment variables
+- ⚠️ Change default credentials on first login
+- ⚠️ Generate unique SECRET_KEY and JWT_SECRET_KEY
+
+### Production Recommendations
+1. Use HTTPS/SSL certificates
+2. Configure firewall rules
+3. Enable rate limiting
+4. Regular security audits
+5. Database backups
+6. Monitor logs for suspicious activity
+
+---
+
+## 🚀 Deployment
+
+### Docker Deployment (Production)
+
+1. Clone and configure:
+```bash
+git clone https://github.com/Doomakos/soc-shift-manager-production.git
+cd soc-shift-manager-production
+cp .env.example .env
+# Edit .env with your production values
+```
+
+2. Update docker-compose.yml for production:
+   - Change `FLASK_ENV` to `production`
+   - Configure PostgreSQL if needed
+   - Set proper CORS origins
+
+3. Deploy:
+```bash
+docker-compose up -d
+```
+
+### PostgreSQL Setup
+
+For production, use PostgreSQL instead of SQLite:
+
+```bash
+# Add to .env
+DATABASE_URL=postgresql://user:password@postgres:5432/soc_db
+```
+
+Update docker-compose.yml to include PostgreSQL service.
+
+### Cloud Deployment
+
+Compatible with:
+- **Docker:** Any cloud provider (AWS ECS, Google Cloud Run, Azure Container Instances)
+- **Platform:** Render, Railway, Heroku
+- **Self-hosted:** VPS with Docker installed
+
+---
+
+## 💾 Data Persistence
+
+Data is stored in Docker volumes and persists between container restarts:
+
+```bash
+# View volumes
+docker volume ls
+
+# Backup database
+docker run --rm -v soc-shift-manager-production_backend-data:/data \
+  -v $(pwd):/backup alpine tar czf /backup/database-backup.tar.gz -C /data .
+
+# Restore database
+docker run --rm -v soc-shift-manager-production_backend-data:/data \
+  -v $(pwd):/backup alpine tar xzf /backup/database-backup.tar.gz -C /data
+```
+
+---
+
+## 🐛 Troubleshooting
+
+### Common Issues
+
+**Port already in use:**
+```bash
+# Check what's using the port
+lsof -i :3000
+lsof -i :5000
+
+# Change ports in docker-compose.yml if needed
+```
+
+**Can't connect to backend:**
+- Check backend container logs: `docker-compose logs backend`
+- Verify network: `docker network ls`
+- Ensure both containers are running: `docker ps`
+
+**Database errors:**
+```bash
+# Start fresh
+docker-compose down -v
+docker-compose up --build
+```
+
+**Build fails:**
+```bash
+# Clear Docker cache
+docker system prune -a
+docker-compose build --no-cache
+```
+
+For more troubleshooting, see [QUICKSTART.md#troubleshooting](QUICKSTART.md#troubleshooting).
+
+---
+
+## 📚 Documentation
+
+- [QUICKSTART.md](QUICKSTART.md) - Get started in 3 minutes
+- [.env.example](.env.example) - All configuration options
+- [backend/README.md](backend/README.md) - API documentation
+- [DOCKER_SETUP.md](DOCKER_SETUP.md) - Advanced Docker configuration
+
+---
+
+## 🤝 Contributing
+
+Contributions welcome! Please:
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Submit a pull request
+
+---
+
+## 📝 License
+
+This project is licensed under the MIT License.
+
+---
+
+## 📞 Support
+
+- **Issues:** [GitHub Issues](https://github.com/Doomakos/soc-shift-manager-production/issues)
+- **Discussions:** [GitHub Discussions](https://github.com/Doomakos/soc-shift-manager-production/discussions)
+
+---
+
+## 🙏 Acknowledgments
+
+Built for SOC teams worldwide to simplify shift management and ensure fair compensation according to labor laws.
+
+---
+
+**Made with ❤️ for SOC teams**
