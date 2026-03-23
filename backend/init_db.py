@@ -199,7 +199,7 @@ def init_sample_data():
                 end_time=end_time,
                 shift_type=shift_type,
                 hours_worked=pay_calc['total_hours'],
-                avg_multiplier=pay_calc['avg_multiplier'],
+                pay_multiplier=pay_calc['pay_multiplier'],
                 base_pay=pay_calc['base_pay'],
                 total_pay=pay_calc['total_pay'],
                 notes=f"Sample {shift_type} shift",
@@ -271,7 +271,7 @@ def calculate_greek_pay(base_rate, shift_date, start_time, end_time, shift_type)
     
     return {
         'total_hours': round(total_hours, 2),
-        'avg_multiplier': multiplier,
+        'pay_multiplier': multiplier,
         'base_pay': round(base_pay, 2),
         'total_pay': round(total_pay, 2)
     }
