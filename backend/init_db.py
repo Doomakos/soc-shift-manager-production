@@ -1,6 +1,6 @@
 """
 SOC Shift Manager - Database Initialization Script
-This script initializes the database with sample data for testing.
+This script initializes the database with minimal sample data for demonstration.
 """
 
 import os
@@ -12,7 +12,7 @@ from app import Analyst, PayRule, Shift, User, app, db
 
 
 def init_sample_data():
-    """Initialize database with sample data and admin user"""
+    """Initialize database with minimal sample data and admin user"""
 
     with app.app_context():
         # Create tables
@@ -111,7 +111,7 @@ def init_sample_data():
 
         print(f"✓ Created {len(pay_rules)} pay rules")
 
-        # Create sample analysts
+        # Create minimal sample analysts (4 analysts for demo)
         analysts = [
             Analyst(
                 employee_id="SOC001",
@@ -149,78 +149,6 @@ def init_sample_data():
                 status="active",
                 created_by=admin_user.id
             ),
-            Analyst(
-                employee_id="SOC005",
-                first_name="David",
-                last_name="Chen",
-                email="david.chen@soc.local",
-                base_hourly_rate=16.00,
-                status="active",
-                created_by=admin_user.id
-            ),
-            Analyst(
-                employee_id="SOC006",
-                first_name="Emma",
-                last_name="Wilson",
-                email="emma.wilson@soc.local",
-                base_hourly_rate=15.50,
-                status="active",
-                created_by=admin_user.id
-            ),
-            Analyst(
-                employee_id="SOC007",
-                first_name="Raj",
-                last_name="Patel",
-                email="raj.patel@soc.local",
-                base_hourly_rate=16.75,
-                status="active",
-                created_by=admin_user.id
-            ),
-            Analyst(
-                employee_id="SOC008",
-                first_name="Anna",
-                last_name="Kowalski",
-                email="anna.kowalski@soc.local",
-                base_hourly_rate=15.25,
-                status="active",
-                created_by=admin_user.id
-            ),
-            Analyst(
-                employee_id="SOC009",
-                first_name="Carlos",
-                last_name="Rodriguez",
-                email="carlos.rodriguez@soc.local",
-                base_hourly_rate=17.50,
-                status="active",
-                created_by=admin_user.id
-            ),
-            Analyst(
-                employee_id="SOC010",
-                first_name="Yuki",
-                last_name="Tanaka",
-                email="yuki.tanaka@soc.local",
-                base_hourly_rate=16.25,
-                status="active",
-                created_by=admin_user.id
-            ),
-            Analyst(
-                employee_id="SOC011",
-                first_name="Fatima",
-                last_name="Al-Rashid",
-                email="fatima.alrashid@soc.local",
-                base_hourly_rate=15.80,
-                status="active",
-                created_by=admin_user.id
-            ),
-            Analyst(
-                employee_id="SOC012",
-                first_name="Michael",
-                last_name="O'Brien",
-                email="michael.obrien@soc.local",
-                base_hourly_rate=16.90,
-                status="active",
-                created_by=admin_user.id
-            ),
         ]
 
         for analyst in analysts:
@@ -229,9 +157,9 @@ def init_sample_data():
         db.session.flush()  # Ensure analysts have IDs
         print(f"✓ Created {len(analysts)} sample analysts")
 
-        # Create sample shifts for the last 90 days
+        # Create minimal sample shifts (12 shifts for demo)
         end_date = datetime.now().date()
-        start_date = end_date - timedelta(days=90)
+        start_date = end_date - timedelta(days=30)  # Last 30 days instead of 90
 
         shift_types = ['morning', 'afternoon', 'night', 'standard']
         shift_configs = {
@@ -241,14 +169,14 @@ def init_sample_data():
             'standard': ('09:00:00', '17:00:00'),
         }
 
-        # Generate ~60 shifts across all analysts
-        num_shifts = 60
+        # Generate 12 sample shifts across all analysts
+        num_shifts = 12
         print(f"🔄 Generating {num_shifts} sample shifts...")
 
         for i in range(num_shifts):
-            analyst = random.choice(analysts)
-            shift_date = start_date + timedelta(days=random.randint(0, 90))
-            shift_type = random.choice(shift_types)
+            analyst = analysts[i % len(analysts)]  # Distribute evenly
+            shift_date = start_date + timedelta(days=(i * 2) + random.randint(0, 1))
+            shift_type = shift_types[i % len(shift_types)]
             start_time_str, end_time_str = shift_configs[shift_type]
 
             # Parse times
@@ -270,32 +198,33 @@ def init_sample_data():
                 start_time=start_time,
                 end_time=end_time,
                 shift_type=shift_type,
-                work_location=random.choice(['office', 'remote']),
                 hours_worked=pay_calc['total_hours'],
-                pay_multiplier=pay_calc['avg_multiplier'],
+                avg_multiplier=pay_calc['avg_multiplier'],
                 base_pay=pay_calc['base_pay'],
                 total_pay=pay_calc['total_pay'],
-                notes=f"Sample shift #{i+1}",
-                created_by=admin_user.id
+                notes=f"Sample {shift_type} shift",
+                created_at=datetime.utcnow()
             )
             db.session.add(shift)
 
+        # Commit all changes
         db.session.commit()
-        
-        print("\n" + "="*60)
+
+        print("\n" + "=" * 60)
         print("✅ DATABASE INITIALIZED SUCCESSFULLY!")
-        print("="*60)
-        print(f"\n📊 Summary:")
+        print("=" * 60)
+        print("\n📊 Summary:")
         print(f"   - Admin User: {admin_username}")
         print(f"   - Sample Analysts: {len(analysts)}")
         print(f"   - Pay Rules: {len(pay_rules)}")
         print(f"   - Sample Shifts: {num_shifts}")
-        print(f"\n🔑 Default Login Credentials:")
+        print("\n🔑 Default Login Credentials:")
         print(f"   Username: {admin_username}")
         print(f"   Password: {admin_password}")
         print(f"   Email: {admin_email}")
-        print(f"\n⚠️  IMPORTANT: Change the admin password after first login!")
-        print("="*60 + "\n")
+        print("\n⚠️  IMPORTANT: Change the admin password after first login!")
+        print("=" * 60)
+        print()
 
 
 def calculate_greek_pay(base_rate, shift_date, start_time, end_time, shift_type):
