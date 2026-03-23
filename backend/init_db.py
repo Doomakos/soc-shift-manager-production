@@ -36,7 +36,8 @@ def init_sample_data():
             email=admin_email,
             password_hash=generate_password_hash(admin_password),
             role='admin',
-            is_active=True,
+            status='active',
+            active=True,
             force_password_change=False,
             created_at=datetime.utcnow()
         )
