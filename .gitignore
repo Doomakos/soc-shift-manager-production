@@ -1,0 +1,58 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+ENV/
+env/
+*.egg-info/
+
+# Database
+*.db
+*.sqlite3
+instance/
+
+# Node
+node_modules/
+frontend/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+.env.production
+.env.development
+
+# Logs
+*.log
+logs/
+backend_server.pid
+
+# Build
+frontend/build/
+frontend/dist/
+
+# Sensitive data (backups should not be committed in production)
+*_backup.json
+analysts_backup.json
+shifts_backup.json
+
+# Zone identifier files (Windows WSL artifacts)
+*:Zone.Identifier
+*_Zone.Identifier
