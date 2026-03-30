@@ -19,7 +19,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     FLASK_ENV=production \
     PORT=4443 \
     DATABASE_URL=sqlite:////app/instance/soc_shift_manager.db \
-    START_COMMAND=gunicorn --bind 0.0.0.0:4443 --workers 2 --threads 4 --timeout 120 app:app
+    START_COMMAND="gunicorn --bind 0.0.0.0:4443 --workers 2 --threads 4 --timeout 120 app:app"
 
 WORKDIR /app
 
