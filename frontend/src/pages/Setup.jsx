@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
+const AUTH_API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
+
 const Setup = () => {
     const navigate = useNavigate();
     const [formData, setFormData] = useState({
@@ -44,7 +46,7 @@ const Setup = () => {
         setLoading(true);
 
         try {
-            const response = await axios.post('http://localhost:5000/api/auth/setup', {
+            const response = await axios.post(`${AUTH_API_BASE_URL}/auth/setup`, {
                 username: formData.username,
                 email: formData.email,
                 password: formData.password,

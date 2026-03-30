@@ -18,6 +18,8 @@ import Profile from './pages/Profile';
 import { systemAPI } from './api';
 import axios from 'axios';
 
+const AUTH_API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
+
 // Navigation component with role-aware UI
 function Navigation() {
     const { isAuthenticated, user, logout, hasRole } = useAuth();
@@ -128,7 +130,7 @@ function FirstRunCheck({ children }) {
     useEffect(() => {
         const checkSetup = async () => {
             try {
-                const response = await axios.get('http://localhost:5000/api/auth/setup');
+                const response = await axios.get(`${AUTH_API_BASE_URL}/auth/setup`);
                 setNeedsSetup(response.data.needs_setup);
             } catch (error) {
                 console.error('Setup check failed:', error);

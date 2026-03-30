@@ -2,6 +2,7 @@ import React, { createContext, useState, useContext, useEffect } from 'react';
 import axios from 'axios';
 
 const AuthContext = createContext(null);
+const AUTH_API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
 
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
@@ -27,7 +28,7 @@ export const AuthProvider = ({ children }) => {
 
     const login = async (username, password) => {
         try {
-            const response = await axios.post('http://localhost:5000/api/auth/login', {
+            const response = await axios.post(`${AUTH_API_BASE_URL}/auth/login`, {
                 username,
                 password,
             });
@@ -68,7 +69,7 @@ export const AuthProvider = ({ children }) => {
     const refreshAccessToken = async () => {
         try {
             const response = await axios.post(
-                'http://localhost:5000/api/auth/refresh',
+                `${AUTH_API_BASE_URL}/auth/refresh`,
                 {},
                 {
                     headers: {
