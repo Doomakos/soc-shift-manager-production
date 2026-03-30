@@ -1,0 +1,17 @@
+{
+    email {$ACME_EMAIL}
+}
+
+{$DOMAIN} {
+    encode gzip zstd
+
+    # Basic hardening headers at the edge.
+    header {
+        X-Content-Type-Options nosniff
+        X-Frame-Options DENY
+        Referrer-Policy strict-origin-when-cross-origin
+        Permissions-Policy camera=(), microphone=(), geolocation=()
+    }
+
+    reverse_proxy soc-app:4443
+}

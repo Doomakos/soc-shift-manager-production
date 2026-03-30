@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  soc-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: soc-shift-manager:beta
+    container_name: soc-shift-manager-beta
+    environment:
+      - SECRET_KEY=${SECRET_KEY:-change-this-secret-key-in-production}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-change-this-jwt-secret-in-production}
+      - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-Admin123!}
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-admin@soc.local}
+      - CORS_ORIGINS=${CORS_ORIGINS:-https://soc-beta.example.com}
+      - FLASK_ENV=production
+      - PORT=4443
+      - DATABASE_URL=sqlite:////app/instance/soc_shift_manager.db
+      - START_COMMAND=gunicorn --bind 0.0.0.0:4443 --workers 2 --threads 4 --timeout 120 app:app
+    volumes:
+      - backend-data:/app/instance
+    networks:
+      - beta-network
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2.8-alpine
+    container_name: soc-shift-manager-proxy
+    depends_on:
+      - soc-app
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - DOMAIN=${DOMAIN}
+      - ACME_EMAIL=${ACME_EMAIL}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks:
+      - beta-network
+    restart: unless-stopped
+
+networks:
+  beta-network:
+    driver: bridge
+
+volumes:
+  backend-data:
+    driver: local
+  caddy-data:
+    driver: local
+  caddy-config:
+    driver: local

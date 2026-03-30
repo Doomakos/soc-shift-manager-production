@@ -5,7 +5,7 @@ import re
 from functools import wraps
 
 from dotenv import load_dotenv
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from flask_jwt_extended import (
@@ -20,16 +20,32 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 load_dotenv()
 
-app = Flask(__name__)
-CORS(app, 
-     resources={r"/*": {"origins": "*"}},
-     supports_credentials=True,
-     allow_headers=["Content-Type", "Authorization"],
-     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"])
+app = Flask(__name__, static_folder="static", static_url_path="")
+
+cors_origins_env = os.getenv("CORS_ORIGINS", "*").strip()
+cors_origins = [origin.strip() for origin in cors_origins_env.split(",") if origin.strip()]
+
+# Wildcard origins cannot be combined with credentialed CORS responses.
+if cors_origins == ["*"]:
+    CORS(
+        app,
+        resources={r"/api/*": {"origins": "*"}},
+        supports_credentials=False,
+        allow_headers=["Content-Type", "Authorization"],
+        methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    )
+else:
+    CORS(
+        app,
+        resources={r"/api/*": {"origins": cors_origins}},
+        supports_credentials=True,
+        allow_headers=["Content-Type", "Authorization"],
+        methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    )
 
 # Database Configuration
 app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv(
-    "DATABASE_URL", "sqlite:///soc_shift_manager.db"
+    "DATABASE_URL", "sqlite:////app/instance/soc_shift_manager.db"
 )
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
@@ -2076,6 +2092,28 @@ def get_l2_analysts():
     """Get all L2 analysts"""
     l2_analysts = Analyst.query.filter_by(analyst_level="L2", status="active").all()
     return jsonify([a.to_dict() for a in l2_analysts]), 200
+
+
+@app.route("/", defaults={"path": ""})
+@app.route("/<path:path>")
+def serve_frontend(path):
+    """Serve SPA assets for the single-image deployment."""
+    static_root = app.static_folder
+    if not static_root:
+        return jsonify({"error": "Frontend is not bundled in this deployment"}), 404
+
+    if path == "api" or path.startswith("api/"):
+        return jsonify({"error": "Not found"}), 404
+
+    target_path = os.path.join(static_root, path)
+    if path and os.path.exists(target_path) and os.path.isfile(target_path):
+        return send_from_directory(static_root, path)
+
+    index_path = os.path.join(static_root, "index.html")
+    if os.path.exists(index_path):
+        return send_from_directory(static_root, "index.html")
+
+    return jsonify({"error": "Frontend is not bundled in this deployment"}), 404
 
 
 if __name__ == "__main__":

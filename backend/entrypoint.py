@@ -6,6 +6,7 @@ Handles database initialization and starts the Flask application
 import os
 import sys
 import subprocess
+import shlex
 
 def main():
     print("Starting SOC Shift Manager Backend...")
@@ -25,9 +26,11 @@ def main():
     else:
         print(f"✓ Database already exists: {db_path}")
     
-    # Start the Flask application
-    print("Starting Flask application...")
-    os.execvp(sys.executable, [sys.executable, "app.py"])
+    # Start the application (configurable for production/development runtimes)
+    start_command = os.getenv("START_COMMAND", f"{sys.executable} app.py")
+    print(f"Starting application with command: {start_command}")
+    args = shlex.split(start_command)
+    os.execvp(args[0], args)
 
 if __name__ == "__main__":
     main()

@@ -1,0 +1,34 @@
+# Git
+.git
+.gitignore
+
+# Python
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+venv/
+ENV/
+env/
+
+# Node
+frontend/node_modules/
+frontend/build/
+frontend/dist/
+
+# Environment and local runtime data
+.env
+.env.*
+backend/instance/
+instance/
+*.db
+*.sqlite3
+
+# Logs and temporary files
+*.log
+logs/
+
+# Docs and metadata not needed in image
+*.md
+*:Zone.Identifier
+*_Zone.Identifier

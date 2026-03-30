@@ -97,8 +97,24 @@ docker-compose up --build
 - Build Docker containers
 - Initialize the database
 - Create an admin account
-- Load sample data (12 analysts, 60 shifts)
+- Load sample data (4 analysts, 12 shifts)
 - Start on http://localhost:3000
+
+### Method 1B: Single-Image Beta Deployment
+
+Use this for beta environments where frontend and backend run from one image:
+
+```bash
+# Clone the repository
+git clone https://github.com/Doomakos/soc-shift-manager-production.git
+cd soc-shift-manager-production
+
+# Start single-container beta stack
+docker compose -f docker-compose.beta.yml up --build -d
+```
+
+Beta UI/API endpoint:
+- http://localhost:4443
 
 ### Method 2: Manual Setup
 
@@ -356,15 +372,39 @@ cp .env.example .env
 # Edit .env with your production values
 ```
 
-2. Update docker-compose.yml for production:
-   - Change `FLASK_ENV` to `production`
-   - Configure PostgreSQL if needed
-   - Set proper CORS origins
+2. Choose your deployment model:
+  - Two-container mode: use `docker-compose.yml`
+  - Single-image beta direct mode (internal only): use `docker-compose.beta.yml`
+  - Single-image beta reverse proxy mode (user testing): use `docker-compose.beta.proxy.yml`
 
-3. Deploy:
+3. Set production values:
+  - Generate secure `SECRET_KEY` and `JWT_SECRET_KEY`
+  - Change admin defaults (`ADMIN_USERNAME`, `ADMIN_PASSWORD`, `ADMIN_EMAIL`)
+  - Set `CORS_ORIGINS` to approved UI origins only
+  - For reverse proxy mode, also set `DOMAIN` and `ACME_EMAIL`
+
+4. Deploy:
+
+Two-container mode:
 ```bash
 docker-compose up -d
 ```
+
+Single-image beta mode:
+```bash
+docker compose -f docker-compose.beta.yml up -d
+```
+
+Single-image beta reverse proxy mode (recommended for user testing):
+```bash
+export DOMAIN=beta.your-domain.com
+export ACME_EMAIL=ops@your-domain.com
+export CORS_ORIGINS=https://beta.your-domain.com
+docker compose -f docker-compose.beta.proxy.yml up -d
+```
+
+User entrypoint for reverse proxy mode:
+- https://<your-domain>
 
 ### PostgreSQL Setup
 
@@ -414,6 +454,7 @@ docker run --rm -v soc-shift-manager-production_backend-data:/data \
 # Check what's using the port
 lsof -i :3000
 lsof -i :5000
+lsof -i :4443
 
 # Change ports in docker-compose.yml if needed
 ```
@@ -446,7 +487,8 @@ For more troubleshooting, see [QUICKSTART.md#troubleshooting](QUICKSTART.md#trou
 - [QUICKSTART.md](QUICKSTART.md) - Get started in 3 minutes
 - [.env.example](.env.example) - All configuration options
 - [backend/README.md](backend/README.md) - API documentation
-- [DOCKER_SETUP.md](DOCKER_SETUP.md) - Advanced Docker configuration
+- [BETA_MILESTONE.md](BETA_MILESTONE.md) - Beta release checklist
+- [DEPLOYMENT_STRATEGIES.md](DEPLOYMENT_STRATEGIES.md) - 4443 direct vs 443 reverse proxy strategy
 
 ---
 
