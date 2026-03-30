@@ -32,11 +32,12 @@ Important:
 - Change the admin password immediately after first login.
 - Default credentials are intended only for initial access.
 
-## Sample Data Seeded By Default
+## Initial Data Seeded By Default
 
-- 4 analysts
+- 1 admin user
 - 8 pay rules
-- 12 shifts
+- 0 demo analysts
+- 0 demo shifts
 
 ## Prerequisites
 
@@ -124,6 +125,7 @@ Optional admin bootstrap overrides (advanced/deployer use):
 - ADMIN_USERNAME
 - ADMIN_PASSWORD
 - ADMIN_EMAIL
+- ADMIN_FORCE_RESET
 
 How to set optional admin overrides:
 
@@ -136,6 +138,14 @@ export ADMIN_EMAIL=ops@your-domain.com
 Option B: place the same keys in a `.env` file in the project root
 
 If you do not set these values, the defaults are used and you can change the password after login in the app.
+
+Admin recovery reset (one-time):
+
+export ADMIN_PASSWORD=YourNewTemporaryPassword123!
+export ADMIN_FORCE_RESET=true
+docker compose -f docker-compose.beta.proxy.yml up -d
+
+After login succeeds, set ADMIN_FORCE_RESET=false and restart normally.
 
 Optional:
 

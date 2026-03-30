@@ -77,7 +77,15 @@ docker compose -f docker-compose.beta.proxy.yml up -d
 If login fails:
 
 - Verify ADMIN_USERNAME and ADMIN_PASSWORD values used on first initialization.
-- If needed, reset volume and initialize again.
+- Use one-time admin reset if needed.
+
+One-time admin password reset:
+
+export ADMIN_PASSWORD=YourNewTemporaryPassword123!
+export ADMIN_FORCE_RESET=true
+docker compose -f docker-compose.beta.proxy.yml up -d
+
+Then set `ADMIN_FORCE_RESET=false` and restart normally.
 
 Reset data:
 

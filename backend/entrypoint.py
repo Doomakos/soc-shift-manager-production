@@ -17,14 +17,16 @@ def main():
     os.chmod(instance_dir, 0o777)
     print(f"✓ Instance directory ready: {instance_dir}")
     
-    # Initialize database if it doesn't exist
+    # Ensure baseline DB data exists (idempotent bootstrap)
     db_path = os.path.join(instance_dir, "soc_shift_manager.db")
-    if not os.path.exists(db_path):
-        print("Initializing database with sample data...")
-        subprocess.run([sys.executable, "init_db.py"], check=True)
-        print("✓ Database initialized successfully")
+    if os.path.exists(db_path):
+        print(f"✓ Database found: {db_path}")
     else:
-        print(f"✓ Database already exists: {db_path}")
+        print(f"✓ Database will be created at: {db_path}")
+
+    print("Ensuring baseline database data...")
+    subprocess.run([sys.executable, "init_db.py"], check=True)
+    print("✓ Baseline database ready")
     
     # Start the application (configurable for production/development runtimes)
     start_command = os.getenv("START_COMMAND", f"{sys.executable} app.py")
