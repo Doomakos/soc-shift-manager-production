@@ -113,7 +113,7 @@ python init_db.py
 
 This creates:
 - 4 sample analysts
-- 60 sample shifts
+- 12 sample shifts
 - Default pay rules (Sunday +75%, Saturday +50%)
 
 ## Deployment

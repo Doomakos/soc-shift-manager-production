@@ -155,7 +155,7 @@ Pay Rules page → Add Pay Rule → Set multiplier for specific day
 ### Sample Data
 The `init_db.py` script creates:
 - 4 sample analysts
-- 60 sample shifts
+- 12 sample shifts
 - Default pay rules
 
 To reload sample data:
