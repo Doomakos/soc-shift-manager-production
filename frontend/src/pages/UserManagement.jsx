@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api, { analystAPI } from '../api';
-import { Loader, UserPlus, CheckCircle, XCircle, Edit2, Trash2, Shield, User, Key } from 'lucide-react';
+import { Loader, UserPlus, CheckCircle, Edit2, Trash2, Shield, User, Key } from 'lucide-react';
 
 export default function UserManagement() {
     const [users, setUsers] = useState([]);

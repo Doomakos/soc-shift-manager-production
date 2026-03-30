@@ -26,7 +26,6 @@ function Navigation() {
 
     // Define role-based visibility
     const canManage = hasRole('admin', 'soc_manager', 'shift_coordinator');
-    const canViewAnalytics = hasRole('admin', 'soc_manager', 'shift_coordinator', 'hr_payroll');
     const canViewPayRules = hasRole('admin', 'soc_manager');
     const canViewAdvanced = hasRole('admin', 'soc_manager', 'shift_coordinator');
 

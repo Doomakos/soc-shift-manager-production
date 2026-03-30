@@ -1,19 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
     ChevronLeft,
     ChevronRight,
-    Plus,
-    Trash2,
-    Copy,
     Loader,
     X,
 } from 'lucide-react';
 import { analystAPI, shiftAPI } from '../api';
-import { format, getDaysInMonth, startOfMonth, addMonths, subMonths } from 'date-fns';
+import { format, startOfMonth, addMonths, subMonths } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
 
 export default function ShiftCalendar() {
-    const { user, hasRole } = useAuth();
+    const { hasRole } = useAuth();
     const canEdit = hasRole('admin', 'soc_manager', 'shift_coordinator');
     const [currentDate, setCurrentDate] = useState(new Date());
     const [analysts, setAnalysts] = useState([]);
@@ -72,7 +69,6 @@ export default function ShiftCalendar() {
     const [selectedWorkLocation, setSelectedWorkLocation] = useState('office');
 
     // Bulk assignment mode
-    const [bulkMode, setBulkMode] = useState(null);
     const [bulkSelection, setBulkSelection] = useState([]);
 
     // Copy/paste mode
@@ -82,11 +78,7 @@ export default function ShiftCalendar() {
     const [isDragging, setIsDragging] = useState(false);
     const [dragStartCell, setDragStartCell] = useState(null);
 
-    useEffect(() => {
-        fetchData();
-    }, [currentDate]);
-
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
         try {
             setLoading(true);
             const [analystsRes, templatesRes] = await Promise.all([
@@ -114,7 +106,11 @@ export default function ShiftCalendar() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [currentDate]);
+
+    useEffect(() => {
+        fetchData();
+    }, [fetchData]);
 
     const getDaysInCurrentMonth = () => {
         const days = [];
@@ -134,12 +130,6 @@ export default function ShiftCalendar() {
     const getAnalystsForShiftTypeAndDate = (shiftType, dateStr) => {
         return shifts.filter(
             (s) => s.shift_type === shiftType && s.shift_date === dateStr
-        );
-    };
-
-    const getShiftForAnalystOnDate = (analystId, dateStr) => {
-        return shifts.find(
-            (s) => s.analyst_id === analystId && s.shift_date === dateStr
         );
     };
 
@@ -191,7 +181,6 @@ export default function ShiftCalendar() {
                     })
                 );
                 await Promise.all(promises);
-                setBulkMode(null);
                 setBulkSelection([]);
             } else if (modalData.is_edit && modalData.shift_id) {
                 await shiftAPI.update(modalData.shift_id, {
@@ -305,98 +294,6 @@ export default function ShiftCalendar() {
 
         setIsDragging(false);
         setDragStartCell(null);
-    };
-
-    const handleBulkAssign = async () => {
-        if (bulkSelection.length === 0) {
-            setError('Please select at least one cell');
-            return;
-        }
-
-        // Open modal for bulk assignment
-        setModalData({
-            analyst_id: null, // null means bulk
-            shift_date: '',
-            shift_type: 'morning',
-            notes: '',
-            is_edit: false,
-            shift_id: null,
-            is_bulk: true,
-        });
-        setShowModal(true);
-    };
-
-    const handleBulkSwap = async () => {
-        if (bulkSelection.length !== 2) {
-            setError('Please select exactly 2 shifts to swap');
-            return;
-        }
-
-        try {
-            const [shift1, shift2] = bulkSelection;
-            const shiftData1 = getShiftForAnalystOnDate(shift1.analyst_id, shift1.date_str);
-            const shiftData2 = getShiftForAnalystOnDate(shift2.analyst_id, shift2.date_str);
-
-            if (!shiftData1 || !shiftData2) {
-                setError('Both cells must have existing shifts to swap');
-                return;
-            }
-
-            // Swap the shifts by updating each one
-            await Promise.all([
-                shiftAPI.update(shiftData1.id, {
-                    analyst_id: shift2.analyst_id,
-                    shift_date: shift2.date_str,
-                    shift_type: shiftData1.shift_type,
-                    notes: shiftData1.notes,
-                    work_location: shiftData1.work_location || 'office',
-                }),
-                shiftAPI.update(shiftData2.id, {
-                    analyst_id: shift1.analyst_id,
-                    shift_date: shift1.date_str,
-                    shift_type: shiftData2.shift_type,
-                    notes: shiftData2.notes,
-                    work_location: shiftData2.work_location || 'office',
-                }),
-            ]);
-
-            await fetchData();
-            setBulkMode(null);
-            setBulkSelection([]);
-            setError(null);
-        } catch (err) {
-            setError('Failed to swap shifts: ' + (err.response?.data?.error || err.message));
-            console.error(err);
-        }
-    };
-
-    const toggleBulkSelection = (analystId, dateStr) => {
-        const key = `${analystId}-${dateStr}`;
-        const shift = getShiftForAnalystOnDate(analystId, dateStr);
-
-        // For 'assign' mode, don't allow selecting cells that already have shifts
-        // For 'swap' mode, ONLY allow selecting cells with existing shifts
-        if (bulkMode === 'assign' && shift) {
-            setError('Cannot select cells with existing shifts for bulk assign');
-            return;
-        }
-
-        if (bulkMode === 'swap' && !shift) {
-            setError('Can only select cells with existing shifts for swap');
-            return;
-        }
-
-        setBulkSelection((prev) => {
-            const isSelected = prev.some((s) => s.key === key);
-            if (isSelected) {
-                return prev.filter((s) => s.key !== key);
-            } else {
-                return [
-                    ...prev,
-                    { key, analyst_id: analystId, date_str: dateStr, shift_id: shift?.id },
-                ];
-            }
-        });
     };
 
     const getShiftTypeLabel = (type) => {

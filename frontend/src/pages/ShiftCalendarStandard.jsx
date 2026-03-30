@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
     ChevronLeft,
     ChevronRight,
@@ -12,7 +12,7 @@ import { format, startOfMonth, addMonths, subMonths } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
 
 export default function ShiftCalendarStandard() {
-    const { user, hasRole } = useAuth();
+    const { hasRole } = useAuth();
     const canEdit = hasRole('admin', 'soc_manager', 'shift_coordinator');
     const [currentDate, setCurrentDate] = useState(new Date());
     const [analysts, setAnalysts] = useState([]);
@@ -71,11 +71,7 @@ export default function ShiftCalendarStandard() {
     const [bulkMode, setBulkMode] = useState(false);
     const [bulkSelection, setBulkSelection] = useState([]);
 
-    useEffect(() => {
-        fetchData();
-    }, [currentDate]);
-
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
         try {
             setLoading(true);
             const [analystsRes, templatesRes] = await Promise.all([
@@ -99,7 +95,7 @@ export default function ShiftCalendarStandard() {
 
             // Fetch standby weeks for the current month
             try {
-                const standbyRes = await fetch(`http://localhost:5000/api/standby?start_date=${monthStart}&end_date=${monthEnd}`);
+                const standbyRes = await fetch(`/api/standby?start_date=${monthStart}&end_date=${monthEnd}`);
                 const standbyData = await standbyRes.json();
                 setStandbyWeeks(standbyData);
             } catch (err) {
@@ -114,7 +110,11 @@ export default function ShiftCalendarStandard() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [currentDate]);
+
+    useEffect(() => {
+        fetchData();
+    }, [fetchData]);
 
     const getDaysInCurrentMonth = () => {
         const days = [];

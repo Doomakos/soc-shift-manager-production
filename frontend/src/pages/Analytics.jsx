@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { analyticsAPI, analystAPI } from '../api';
 import { Loader, Calendar } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -16,22 +16,6 @@ export default function Analytics() {
         if (!isoDate) return '';
         const [year, month, day] = isoDate.split('-');
         return `${day}/${month}/${year}`;
-    };
-    const formatDateFromGreece = (greeceDate) => {
-        if (!greeceDate) return '';
-        const [day, month, year] = greeceDate.split('/');
-        return `${year}-${month}-${day}`;
-    };
-    const isValidDate = (dateStr) => {
-        if (!dateStr || dateStr.length !== 10) return false;
-        const [day, month, year] = dateStr.split('/');
-        if (!day || !month || !year) return false;
-        const d = parseInt(day);
-        const m = parseInt(month);
-        const y = parseInt(year);
-        if (d < 1 || d > 31 || m < 1 || m > 12 || y < 2000 || y > 2100) return false;
-        const date = new Date(y, m - 1, d);
-        return date.getDate() === d && date.getMonth() === m - 1 && date.getFullYear() === y;
     };
 
     // Get current month's date range
@@ -62,11 +46,7 @@ export default function Analytics() {
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState('team');
 
-    useEffect(() => {
-        fetchInitialData();
-    }, []);
-
-    const fetchInitialData = async () => {
+    const fetchInitialData = useCallback(async () => {
         try {
             setLoading(true);
             const response = await analystAPI.getAll();
@@ -98,7 +78,11 @@ export default function Analytics() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [canViewAll, isAnalyst, monthRange.end, monthRange.start, user]);
+
+    useEffect(() => {
+        fetchInitialData();
+    }, [fetchInitialData]);
 
     const handleAnalystQuery = async (analystId = null) => {
         const idToUse = analystId || selectedAnalystId;
