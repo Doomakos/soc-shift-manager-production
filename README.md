@@ -2,7 +2,7 @@
 
 SOC Shift Manager is a web application for SOC shift operations, analyst scheduling, and Greek labor-law premium pay calculations.
 
-This repository is now documented for the current beta state.
+This guide is written for first-time users and beta testers.
 
 ## Current Beta Status
 
@@ -22,7 +22,7 @@ This repository is now documented for the current beta state.
 
 ## Default Credentials
 
-If you do not override environment variables, first login is:
+The app ships with a default first-login account:
 
 - Username: admin
 - Password: Admin123!
@@ -30,7 +30,7 @@ If you do not override environment variables, first login is:
 Important:
 
 - Change the admin password immediately after first login.
-- For public beta, always set custom ADMIN_USERNAME, ADMIN_PASSWORD, and ADMIN_EMAIL.
+- Default credentials are intended only for initial access.
 
 ## Sample Data Seeded By Default
 
@@ -47,7 +47,7 @@ Important:
 ## Recommended Deployment For User Beta (HTTPS On 443)
 
 1. Clone repository.
-2. Set required environment variables.
+2. Set domain and security variables.
 3. Start reverse-proxy stack.
 
 Commands:
@@ -57,15 +57,19 @@ export ACME_EMAIL=ops@your-domain.com
 export CORS_ORIGINS=https://beta.your-domain.com
 export SECRET_KEY=replace-with-long-random-secret
 export JWT_SECRET_KEY=replace-with-long-random-secret
-export ADMIN_USERNAME=admin
-export ADMIN_PASSWORD=replace-with-strong-password
-export ADMIN_EMAIL=ops@your-domain.com
 
 docker compose -f docker-compose.beta.proxy.yml up --build -d
 
 User access URL:
 
 https://your-domain
+
+First login (default):
+
+- Username: admin
+- Password: Admin123!
+
+Then change password inside the app.
 
 ## Alternative Deployment Modes
 
@@ -114,9 +118,24 @@ Required for reverse-proxy beta:
 - CORS_ORIGINS
 - SECRET_KEY
 - JWT_SECRET_KEY
+
+Optional admin bootstrap overrides (advanced/deployer use):
+
 - ADMIN_USERNAME
 - ADMIN_PASSWORD
 - ADMIN_EMAIL
+
+How to set optional admin overrides:
+
+Option A: export in shell before running docker compose
+
+export ADMIN_USERNAME=myadmin
+export ADMIN_PASSWORD=MyStrongPassword123!
+export ADMIN_EMAIL=ops@your-domain.com
+
+Option B: place the same keys in a `.env` file in the project root
+
+If you do not set these values, the defaults are used and you can change the password after login in the app.
 
 Optional:
 
@@ -154,7 +173,10 @@ Verify DNS points to server and ports 80 and 443 are reachable.
 
 ### App is up but login fails
 
-Check that credentials match ADMIN_USERNAME and ADMIN_PASSWORD used at first initialization.
+Check the credentials that were used when the database was first initialized.
+
+- If ADMIN_USERNAME/ADMIN_PASSWORD were never set, use admin / Admin123!
+- If you changed them through environment variables, use those values
 
 ### Data reset for fresh beta test
 

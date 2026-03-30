@@ -1,11 +1,11 @@
 # Quick Start
 
-This quick start is aligned with the current beta deployment state.
+This quick start is for a first-time user opening the project page.
 
 ## Recommended Path: Reverse Proxy Beta On 443
 
 1. Clone repository.
-2. Set environment variables.
+2. Set required deployment variables.
 3. Start stack.
 4. Login and verify.
 
@@ -18,9 +18,6 @@ export ACME_EMAIL=ops@your-domain.com
 export CORS_ORIGINS=https://beta.your-domain.com
 export SECRET_KEY=replace-with-long-random-secret
 export JWT_SECRET_KEY=replace-with-long-random-secret
-export ADMIN_USERNAME=admin
-export ADMIN_PASSWORD=replace-with-strong-password
-export ADMIN_EMAIL=ops@your-domain.com
 
 docker compose -f docker-compose.beta.proxy.yml up --build -d
 
@@ -32,6 +29,20 @@ Default login if credentials were not overridden:
 
 - Username: admin
 - Password: Admin123!
+
+Change password immediately after first login from the Profile page.
+
+## Optional: Override Initial Admin Credentials
+
+This is only needed by deployers who do not want to start with defaults.
+
+Set before first startup:
+
+export ADMIN_USERNAME=myadmin
+export ADMIN_PASSWORD=MyStrongPassword123!
+export ADMIN_EMAIL=ops@your-domain.com
+
+You can also put the same keys into a `.env` file in the project root.
 
 ## Fallback Path: Direct Single-Image Beta On 4443
 
