@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import api, { analystAPI } from '../api';
 import { Loader, UserPlus, CheckCircle, Edit2, Trash2, Shield, User, Key } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 export default function UserManagement() {
+    const { user: currentUser, hasRole } = useAuth();
     const [users, setUsers] = useState([]);
     const [analysts, setAnalysts] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -35,6 +37,10 @@ export default function UserManagement() {
         'pending_approval': 'bg-yellow-100 text-yellow-800',
         'inactive': 'bg-gray-100 text-gray-800'
     };
+
+    const availableRoles = hasRole('admin') ? roles : roles.filter((role) => role.value !== 'admin');
+
+    const canManageUser = (user) => currentUser?.role === 'admin' || user.role !== 'admin';
 
     useEffect(() => {
         fetchUsers();
@@ -202,6 +208,11 @@ export default function UserManagement() {
     };
 
     const openEditModal = (user) => {
+        if (!canManageUser(user)) {
+            alert('Only administrators can manage administrator accounts');
+            return;
+        }
+
         setSelectedUser(user);
         setFormData({
             username: user.username,
@@ -298,6 +309,11 @@ export default function UserManagement() {
                                         <div className="flex items-center gap-2">
                                             <Shield size={14} className="text-indigo-500" />
                                             <span className="text-sm font-medium">{getRoleLabel(user.role)}</span>
+                                            {user.is_protected_admin && (
+                                                <span className="rounded bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">
+                                                    Emergency admin
+                                                </span>
+                                            )}
                                         </div>
                                     </td>
                                     <td className="px-6 py-4 text-sm text-gray-600">
@@ -319,15 +335,17 @@ export default function UserManagement() {
                                                     <CheckCircle size={18} />
                                                 </button>
                                             ) : (
-                                                <button
-                                                    onClick={() => openEditModal(user)}
-                                                    className="text-blue-600 hover:text-blue-700 p-1"
-                                                    title="Edit user"
-                                                >
-                                                    <Edit2 size={18} />
-                                                </button>
+                                                canManageUser(user) && (
+                                                    <button
+                                                        onClick={() => openEditModal(user)}
+                                                        className="text-blue-600 hover:text-blue-700 p-1"
+                                                        title="Edit user"
+                                                    >
+                                                        <Edit2 size={18} />
+                                                    </button>
+                                                )
                                             )}
-                                            {user.status !== 'pending_approval' && (
+                                            {user.status !== 'pending_approval' && canManageUser(user) && (
                                                 <button
                                                     onClick={() => openResetPasswordModal(user)}
                                                     className="text-purple-600 hover:text-purple-700 p-1"
@@ -336,13 +354,15 @@ export default function UserManagement() {
                                                     <Key size={18} />
                                                 </button>
                                             )}
-                                            <button
-                                                onClick={() => handleDeleteUser(user.id, user.username)}
-                                                className="text-red-600 hover:text-red-700 p-1"
-                                                title="Delete user"
-                                            >
-                                                <Trash2 size={18} />
-                                            </button>
+                                            {!user.is_protected_admin && canManageUser(user) && (
+                                                <button
+                                                    onClick={() => handleDeleteUser(user.id, user.username)}
+                                                    className="text-red-600 hover:text-red-700 p-1"
+                                                    title="Delete user"
+                                                >
+                                                    <Trash2 size={18} />
+                                                </button>
+                                            )}
                                         </div>
                                     </td>
                                 </tr>
@@ -399,7 +419,7 @@ export default function UserManagement() {
                                         required
                                     >
                                         <option value="">-- Select Role --</option>
-                                        {roles.map((role) => (
+                                        {availableRoles.map((role) => (
                                             <option key={role.value} value={role.value}>
                                                 {role.label} - {role.description}
                                             </option>
@@ -466,7 +486,7 @@ export default function UserManagement() {
                                         required
                                     >
                                         <option value="">-- Select Role --</option>
-                                        {roles.map((role) => (
+                                        {availableRoles.map((role) => (
                                             <option key={role.value} value={role.value}>
                                                 {role.label} - {role.description}
                                             </option>
@@ -536,14 +556,20 @@ export default function UserManagement() {
                                         onChange={(e) => setFormData({ ...formData, role: e.target.value })}
                                         className="w-full border rounded px-3 py-2"
                                         required
+                                        disabled={selectedUser.is_protected_admin}
                                     >
-                                        {roles.map((role) => (
+                                        {(selectedUser.is_protected_admin ? roles.filter((role) => role.value === 'admin') : availableRoles).map((role) => (
                                             <option key={role.value} value={role.value}>
                                                 {role.label} - {role.description}
                                             </option>
                                         ))}
                                     </select>
                                 </div>
+                                {selectedUser.is_protected_admin && (
+                                    <div className="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                                        This emergency admin account is protected. It must remain active and keep the Administrator role for fallback access.
+                                    </div>
+                                )}
                                 <div>
                                     <label className="block text-sm font-semibold mb-1">Linked Analyst</label>
                                     <select

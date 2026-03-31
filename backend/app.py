@@ -65,6 +65,15 @@ limiter = Limiter(
     storage_uri="memory://",
 )
 
+VALID_USER_ROLES = [
+    "admin",
+    "soc_manager",
+    "shift_coordinator",
+    "l1_analyst",
+    "l2_analyst",
+    "hr_payroll",
+]
+
 # ==================== DATABASE MODELS ====================
 
 
@@ -100,6 +109,7 @@ class User(db.Model):
             "analyst_id": self.analyst_id,
             "status": self.status,
             "active": self.active,
+            "is_protected_admin": is_protected_admin(user=self),
             "created_at": self.created_at.isoformat(),
             "last_login": self.last_login.isoformat() if self.last_login else None,
         }
@@ -108,6 +118,45 @@ class User(db.Model):
             data["approved_by"] = self.approved_by
             data["approved_at"] = self.approved_at.isoformat() if self.approved_at else None
         return data
+
+
+def get_protected_admin_username():
+    username = os.getenv("ADMIN_USERNAME", "admin").strip()
+    return username or "admin"
+
+
+def is_protected_admin(user):
+    return user is not None and user.username == get_protected_admin_username()
+
+
+def validate_manageable_target(current_user, target_user):
+    if current_user.role != "admin" and target_user.role == "admin":
+        return jsonify({"error": "Only administrators can manage administrator accounts"}), 403
+    return None
+
+
+def validate_assignable_role(current_user, requested_role):
+    if requested_role not in VALID_USER_ROLES:
+        return jsonify({"error": f"Invalid role. Must be one of: {', '.join(VALID_USER_ROLES)}"}), 400
+    if requested_role == "admin" and current_user.role != "admin":
+        return jsonify({"error": "Only administrators can assign the administrator role"}), 403
+    return None
+
+
+def validate_protected_admin_changes(user, data):
+    if not is_protected_admin(user):
+        return None
+
+    if "role" in data and data["role"] != "admin":
+        return jsonify({"error": "The emergency admin account must remain an administrator"}), 400
+
+    if "active" in data and not data["active"]:
+        return jsonify({"error": "The emergency admin account cannot be deactivated"}), 400
+
+    if "analyst_id" in data and data["analyst_id"] not in (None, ""):
+        return jsonify({"error": "The emergency admin account cannot be linked to an analyst record"}), 400
+
+    return None
 
 
 class Analyst(db.Model):
@@ -942,9 +991,9 @@ def create_user():
         return jsonify({"error": "Missing required fields"}), 400
     
     # Validate role
-    valid_roles = ["admin", "soc_manager", "shift_coordinator", "l1_analyst", "l2_analyst", "hr_payroll"]
-    if data["role"] not in valid_roles:
-        return jsonify({"error": f"Invalid role. Must be one of: {', '.join(valid_roles)}"}), 400
+    role_error = validate_assignable_role(current_user, data["role"])
+    if role_error:
+        return role_error
     
     # Check if username or email already exists
     if User.query.filter_by(username=data["username"]).first():
@@ -990,6 +1039,14 @@ def update_user(user_id):
     user = User.query.get_or_404(user_id)
     data = request.json
     current_user = get_current_user()
+
+    target_error = validate_manageable_target(current_user, user)
+    if target_error:
+        return target_error
+
+    protected_admin_error = validate_protected_admin_changes(user, data)
+    if protected_admin_error:
+        return protected_admin_error
     
     # Update fields
     if "email" in data:
@@ -1000,9 +1057,9 @@ def update_user(user_id):
         user.email = data["email"]
     
     if "role" in data:
-        valid_roles = ["admin", "soc_manager", "shift_coordinator", "l1_analyst", "l2_analyst", "hr_payroll"]
-        if data["role"] not in valid_roles:
-            return jsonify({"error": f"Invalid role"}), 400
+        role_error = validate_assignable_role(current_user, data["role"])
+        if role_error:
+            return role_error
         user.role = data["role"]
     
     if "analyst_id" in data:
@@ -1042,9 +1099,9 @@ def approve_user(user_id):
     if "role" not in data:
         return jsonify({"error": "Role is required for approval"}), 400
     
-    valid_roles = ["admin", "soc_manager", "shift_coordinator", "l1_analyst", "l2_analyst", "hr_payroll"]
-    if data["role"] not in valid_roles:
-        return jsonify({"error": f"Invalid role"}), 400
+    role_error = validate_assignable_role(current_user, data["role"])
+    if role_error:
+        return role_error
     
     # Check if analyst_id is already assigned to another user
     if data.get("analyst_id"):
@@ -1076,10 +1133,17 @@ def delete_user(user_id):
     """Delete user (admin and soc_manager only)"""
     user = User.query.get_or_404(user_id)
     current_user = get_current_user()
+
+    target_error = validate_manageable_target(current_user, user)
+    if target_error:
+        return target_error
     
     # Prevent self-deletion
     if user.id == current_user.id:
         return jsonify({"error": "Cannot delete your own account"}), 400
+
+    if is_protected_admin(user):
+        return jsonify({"error": "The emergency admin account cannot be deleted"}), 400
     
     try:
         db.session.delete(user)
@@ -1096,6 +1160,11 @@ def admin_reset_password(user_id):
     """Reset user password (admin and soc_manager only, no current password needed)"""
     user = User.query.get_or_404(user_id)
     data = request.get_json()
+    current_user = get_current_user()
+
+    target_error = validate_manageable_target(current_user, user)
+    if target_error:
+        return target_error
     
     new_password = data.get('new_password')
     if not new_password or len(new_password) < 8:
