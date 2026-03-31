@@ -70,6 +70,7 @@ api.interceptors.response.use(
 // Analysts API
 export const analystAPI = {
     getAll: () => api.get('/analysts'),
+    getL2: () => api.get('/analysts/l2'),
     getById: (id) => api.get(`/analysts/${id}`),
     create: (data) => api.post('/analysts', data),
     update: (id, data) => api.put(`/analysts/${id}`, data),
@@ -101,6 +102,14 @@ export const analyticsAPI = {
         api.get(`/analytics/payroll-details/${analystId}`, { params }),
     getTeamPayrollSummary: (params) =>
         api.get('/analytics/team-payroll-summary', { params }),
+};
+
+// Standby API
+export const standbyAPI = {
+    getAll: (params) => api.get('/standby', { params }),
+    create: (data) => api.post('/standby', data),
+    update: (id, data) => api.put(`/standby/${id}`, data),
+    delete: (id) => api.delete(`/standby/${id}`),
 };
 
 // System API

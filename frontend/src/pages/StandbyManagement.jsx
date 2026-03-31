@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-
-const API_URL = 'http://localhost:5000/api';
+import { analystAPI, standbyAPI } from '../api';
 
 const StandbyManagement = () => {
     const [standbyWeeks, setStandbyWeeks] = useState([]);
@@ -22,7 +20,7 @@ const StandbyManagement = () => {
 
     const fetchStandbyWeeks = async () => {
         try {
-            const response = await axios.get(`${API_URL}/standby`);
+            const response = await standbyAPI.getAll();
             setStandbyWeeks(response.data);
         } catch (err) {
             setError('Failed to fetch standby weeks');
@@ -31,7 +29,7 @@ const StandbyManagement = () => {
 
     const fetchL2Analysts = async () => {
         try {
-            const response = await axios.get(`${API_URL}/analysts/l2`);
+            const response = await analystAPI.getL2();
             setL2Analysts(response.data);
         } catch (err) {
             setError('Failed to fetch L2 analysts');
@@ -68,7 +66,7 @@ const StandbyManagement = () => {
         setError(null);
 
         try {
-            await axios.post(`${API_URL}/standby`, {
+            await standbyAPI.create({
                 analyst_id: parseInt(selectedAnalyst),
                 week_start: weekStart,
                 week_end: weekEnd,
@@ -96,7 +94,7 @@ const StandbyManagement = () => {
         }
 
         try {
-            await axios.delete(`${API_URL}/standby/${id}`);
+            await standbyAPI.delete(id);
             fetchStandbyWeeks();
         } catch (err) {
             setError('Failed to delete standby week');
