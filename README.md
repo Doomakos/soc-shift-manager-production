@@ -199,8 +199,21 @@ docker compose -f docker-compose.beta.proxy.yml up --build -d
 - QUICKSTART.md: concise install steps
 - BETA_MILESTONE.md: release scope and checklist
 - DEPLOYMENT_STRATEGIES.md: strategy rationale and user impact
+- VITE_MIGRATION_CHECKLIST.md: post-beta frontend migration plan
 - backend/README.md: backend API notes
 - frontend/README.md: frontend notes
+
+## CI
+
+GitHub Actions workflow file:
+
+- .github/workflows/ci.yml
+
+Checks included:
+
+- Backend dependency install and syntax checks
+- Frontend install and production build
+- Docker compose configuration validation for all deployment modes
 
 ## Security Notes
 

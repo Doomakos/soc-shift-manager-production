@@ -8,6 +8,8 @@ from dotenv import load_dotenv
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from flask_jwt_extended import (
     JWTManager,
     create_access_token,
@@ -56,6 +58,12 @@ app.config["JWT_REFRESH_TOKEN_EXPIRES"] = timedelta(days=7)  # Longer refresh pe
 
 db = SQLAlchemy(app)
 jwt = JWTManager(app)
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    default_limits=["300 per hour"],
+    storage_uri="memory://",
+)
 
 # ==================== DATABASE MODELS ====================
 
@@ -720,6 +728,7 @@ def calculate_shift_pay(analyst_id, shift_date, start_time, end_time, shift_type
 # ==================== API ENDPOINTS - AUTHENTICATION ====================
 
 @app.route("/api/auth/setup", methods=["GET", "POST"])
+@limiter.limit("5 per minute", methods=["POST"])
 def setup_admin():
     """First-run setup: Check if admin exists, create if needed"""
     
@@ -766,6 +775,7 @@ def setup_admin():
 
 
 @app.route("/api/auth/register", methods=["POST"])
+@limiter.limit("5 per minute")
 def register():
     """Self-registration endpoint (pending approval)"""
     data = request.json
@@ -806,6 +816,7 @@ def register():
 
 
 @app.route("/api/auth/login", methods=["POST"])
+@limiter.limit("10 per minute")
 def login():
     """Login endpoint - returns access and refresh tokens"""
     data = request.json
@@ -845,6 +856,7 @@ def login():
 
 
 @app.route("/api/auth/refresh", methods=["POST"])
+@limiter.limit("20 per minute")
 @jwt_required(refresh=True)
 def refresh():
     """Refresh access token using refresh token"""
