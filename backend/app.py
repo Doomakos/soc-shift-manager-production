@@ -74,6 +74,11 @@ VALID_USER_ROLES = [
     "hr_payroll",
 ]
 
+MANAGEMENT_ROLES = ("admin", "soc_manager", "shift_coordinator")
+PAY_RULE_ROLES = ("admin", "soc_manager")
+ANALYST_ROLES = ("l1_analyst", "l2_analyst")
+ANALYTICS_VIEW_ALL_ROLES = ("admin", "soc_manager", "shift_coordinator", "hr_payroll")
+
 # ==================== DATABASE MODELS ====================
 
 
@@ -157,6 +162,20 @@ def validate_protected_admin_changes(user, data):
         return jsonify({"error": "The emergency admin account cannot be linked to an analyst record"}), 400
 
     return None
+
+
+def can_view_analyst_scope(user, analyst_id):
+    if user.role in ANALYTICS_VIEW_ALL_ROLES:
+        return True
+    return user.role in ANALYST_ROLES and user.analyst_id == analyst_id
+
+
+def get_accessible_analyst_ids(user):
+    if user.role in ANALYTICS_VIEW_ALL_ROLES:
+        return None
+    if user.role in ANALYST_ROLES and user.analyst_id:
+        return [user.analyst_id]
+    return []
 
 
 class Analyst(db.Model):
@@ -1184,13 +1203,24 @@ def admin_reset_password(user_id):
 
 
 @app.route("/api/analysts", methods=["GET"])
+@jwt_required()
 def get_analysts():
     """Get all analysts"""
-    analysts = Analyst.query.all()
+    current_user = get_current_user()
+    accessible_ids = get_accessible_analyst_ids(current_user)
+
+    query = Analyst.query
+    if accessible_ids is not None:
+        if not accessible_ids:
+            return jsonify([]), 200
+        query = query.filter(Analyst.id.in_(accessible_ids))
+
+    analysts = query.all()
     return jsonify([a.to_dict() for a in analysts]), 200
 
 
 @app.route("/api/analysts", methods=["POST"])
+@role_required(*MANAGEMENT_ROLES)
 def create_analyst():
     """Create a new analyst"""
     data = request.json
@@ -1246,13 +1276,19 @@ def create_analyst():
 
 
 @app.route("/api/analysts/<int:analyst_id>", methods=["GET"])
+@jwt_required()
 def get_analyst(analyst_id):
     """Get a specific analyst"""
+    current_user = get_current_user()
+    if not can_view_analyst_scope(current_user, analyst_id):
+        return jsonify({"error": "You do not have access to this analyst"}), 403
+
     analyst = Analyst.query.get_or_404(analyst_id)
     return jsonify(analyst.to_dict()), 200
 
 
 @app.route("/api/analysts/<int:analyst_id>", methods=["PUT"])
+@role_required(*MANAGEMENT_ROLES)
 def update_analyst(analyst_id):
     """Update an analyst"""
     analyst = Analyst.query.get_or_404(analyst_id)
@@ -1296,6 +1332,7 @@ def update_analyst(analyst_id):
 
 
 @app.route("/api/analysts/<int:analyst_id>", methods=["DELETE"])
+@role_required(*MANAGEMENT_ROLES)
 def delete_analyst(analyst_id):
     """Delete an analyst"""
     analyst = Analyst.query.get_or_404(analyst_id)
@@ -1308,6 +1345,7 @@ def delete_analyst(analyst_id):
 
 
 @app.route("/api/shift-templates", methods=["GET"])
+@jwt_required()
 def get_shift_templates():
     """Get available shift templates"""
     templates = [
@@ -1323,15 +1361,21 @@ def get_shift_templates():
 
 
 @app.route("/api/shifts", methods=["GET"])
+@jwt_required()
 def get_shifts():
     """Get all shifts with optional filtering"""
+    current_user = get_current_user()
     analyst_id = request.args.get("analyst_id")
     start_date = request.args.get("start_date")
     end_date = request.args.get("end_date")
 
     query = Shift.query
 
-    if analyst_id:
+    if current_user.role in ANALYST_ROLES:
+        if not current_user.analyst_id:
+            return jsonify([]), 200
+        query = query.filter_by(analyst_id=current_user.analyst_id)
+    elif analyst_id:
         query = query.filter_by(analyst_id=analyst_id)
     if start_date:
         query = query.filter(Shift.shift_date >= start_date)
@@ -1343,7 +1387,7 @@ def get_shifts():
 
 
 @app.route("/api/shifts", methods=["POST"])
-@jwt_required()
+@role_required(*MANAGEMENT_ROLES)
 def create_shift():
     """Create a new shift"""
     data = request.json
@@ -1430,14 +1474,20 @@ def create_shift():
 
 
 @app.route("/api/shifts/<int:shift_id>", methods=["GET"])
+@jwt_required()
 def get_shift(shift_id):
     """Get a specific shift"""
+    current_user = get_current_user()
     shift = Shift.query.get_or_404(shift_id)
+
+    if current_user.role in ANALYST_ROLES and shift.analyst_id != current_user.analyst_id:
+        return jsonify({"error": "You do not have access to this shift"}), 403
+
     return jsonify(shift.to_dict()), 200
 
 
 @app.route("/api/shifts/<int:shift_id>", methods=["PUT"])
-@jwt_required()
+@role_required(*MANAGEMENT_ROLES)
 def update_shift(shift_id):
     """Update a shift"""
     shift = Shift.query.get_or_404(shift_id)
@@ -1507,7 +1557,7 @@ def update_shift(shift_id):
 
 
 @app.route("/api/shifts/<int:shift_id>", methods=["DELETE"])
-@jwt_required()
+@role_required(*MANAGEMENT_ROLES)
 def delete_shift(shift_id):
     """Delete a shift"""
     shift = Shift.query.get_or_404(shift_id)
@@ -1520,6 +1570,7 @@ def delete_shift(shift_id):
 
 
 @app.route("/api/pay-rules", methods=["GET"])
+@jwt_required()
 def get_pay_rules():
     """Get all pay rules"""
     rules = PayRule.query.filter_by(active=True).all()
@@ -1527,6 +1578,7 @@ def get_pay_rules():
 
 
 @app.route("/api/pay-rules", methods=["POST"])
+@role_required(*PAY_RULE_ROLES)
 def create_pay_rule():
     """Create a new pay rule"""
     data = request.json
@@ -1548,6 +1600,7 @@ def create_pay_rule():
 
 
 @app.route("/api/pay-rules/<int:rule_id>", methods=["PUT"])
+@role_required(*PAY_RULE_ROLES)
 def update_pay_rule(rule_id):
     """Update a pay rule"""
     rule = PayRule.query.get_or_404(rule_id)
@@ -1562,6 +1615,7 @@ def update_pay_rule(rule_id):
 
 
 @app.route("/api/pay-rules/initialize", methods=["POST"])
+@role_required(*PAY_RULE_ROLES)
 def initialize_pay_rules():
     """Initialize default Greek labor law pay rules"""
     try:
@@ -1607,6 +1661,7 @@ def initialize_pay_rules():
 
 
 @app.route("/api/shifts/recalculate-all", methods=["POST"])
+@role_required(*PAY_RULE_ROLES)
 def recalculate_all_shifts():
     """Recalculate pay for all existing shifts using new Greek labor law system"""
     try:
@@ -1665,8 +1720,13 @@ def recalculate_all_shifts():
 
 
 @app.route("/api/analytics/analyst-summary/<int:analyst_id>", methods=["GET"])
+@jwt_required()
 def get_analyst_summary(analyst_id):
     """Get detailed shift information for payroll calculation (no final pay amounts)"""
+    current_user = get_current_user()
+    if not can_view_analyst_scope(current_user, analyst_id):
+        return jsonify({"error": "You do not have access to this analyst summary"}), 403
+
     start_date = request.args.get("start_date")
     end_date = request.args.get("end_date")
 
@@ -1759,6 +1819,7 @@ def get_analyst_summary(analyst_id):
 
 
 @app.route("/api/analytics/team-summary", methods=["GET"])
+@role_required(*ANALYTICS_VIEW_ALL_ROLES)
 def get_team_summary():
     """Get shift summary stats for entire team with aggregated multiplier breakdown"""
     start_date = request.args.get("start_date")
@@ -1827,6 +1888,7 @@ def get_team_summary():
 
 
 @app.route("/api/analytics/payroll-details/<int:analyst_id>", methods=["GET"])
+@jwt_required()
 def get_payroll_details(analyst_id):
     """
     DEPRECATED: Payroll details endpoint removed for privacy.
@@ -1978,6 +2040,7 @@ def get_payroll_details(analyst_id):
 
 
 @app.route("/api/analytics/team-payroll-summary", methods=["GET"])
+@role_required(*ANALYTICS_VIEW_ALL_ROLES)
 def get_team_payroll_summary():
     """
     DEPRECATED: Team payroll endpoint removed for privacy.
@@ -1994,6 +2057,7 @@ def get_team_payroll_summary():
 
 
 @app.route("/api/init", methods=["POST"])
+@role_required(*PAY_RULE_ROLES)
 def initialize_database():
     """Initialize database with default pay rules"""
     try:
@@ -2042,15 +2106,21 @@ def health_check():
 
 
 @app.route("/api/standby", methods=["GET"])
+@jwt_required()
 def get_standby_weeks():
     """Get all standby week assignments"""
+    current_user = get_current_user()
     start_date = request.args.get("start_date")
     end_date = request.args.get("end_date")
     analyst_id = request.args.get("analyst_id")
     
     query = StandbyWeek.query
     
-    if analyst_id:
+    if current_user.role in ANALYST_ROLES:
+        if not current_user.analyst_id:
+            return jsonify([]), 200
+        query = query.filter_by(analyst_id=current_user.analyst_id)
+    elif analyst_id:
         query = query.filter_by(analyst_id=analyst_id)
     
     # Filter for weeks that overlap with the date range
@@ -2070,6 +2140,7 @@ def get_standby_weeks():
 
 
 @app.route("/api/standby", methods=["POST"])
+@role_required(*MANAGEMENT_ROLES)
 def create_standby_week():
     """Assign L2 analyst to standby for a week"""
     data = request.json
@@ -2124,6 +2195,7 @@ def create_standby_week():
 
 
 @app.route("/api/standby/<int:standby_id>", methods=["PUT"])
+@role_required(*MANAGEMENT_ROLES)
 def update_standby_week(standby_id):
     """Update standby week assignment"""
     standby_week = StandbyWeek.query.get_or_404(standby_id)
@@ -2160,6 +2232,7 @@ def update_standby_week(standby_id):
 
 
 @app.route("/api/standby/<int:standby_id>", methods=["DELETE"])
+@role_required(*MANAGEMENT_ROLES)
 def delete_standby_week(standby_id):
     """Delete standby week assignment"""
     standby_week = StandbyWeek.query.get_or_404(standby_id)
@@ -2169,6 +2242,7 @@ def delete_standby_week(standby_id):
 
 
 @app.route("/api/analysts/l2", methods=["GET"])
+@role_required(*MANAGEMENT_ROLES)
 def get_l2_analysts():
     """Get all L2 analysts"""
     l2_analysts = Analyst.query.filter_by(analyst_level="L2", status="active").all()

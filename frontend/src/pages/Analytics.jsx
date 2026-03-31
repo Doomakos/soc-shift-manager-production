@@ -49,8 +49,6 @@ export default function Analytics() {
     const fetchInitialData = useCallback(async () => {
         try {
             setLoading(true);
-            const response = await analystAPI.getAll();
-            setAnalysts(response.data);
 
             // If user is an analyst, auto-select their own data
             if (isAnalyst && user.analyst_id) {
@@ -65,6 +63,9 @@ export default function Analytics() {
                 const summaryResponse = await analyticsAPI.getAnalystSummary(user.analyst_id, params);
                 setAnalyticsData(summaryResponse.data);
             } else if (canViewAll) {
+                const response = await analystAPI.getAll();
+                setAnalysts(response.data);
+
                 // Load team data for managers
                 const params = {
                     start_date: monthRange.start,

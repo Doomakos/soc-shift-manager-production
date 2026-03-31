@@ -7,7 +7,7 @@ import {
     Loader,
     X,
 } from 'lucide-react';
-import { analystAPI, shiftAPI } from '../api';
+import { analystAPI, shiftAPI, standbyAPI } from '../api';
 import { format, startOfMonth, addMonths, subMonths } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
 
@@ -95,9 +95,11 @@ export default function ShiftCalendarStandard() {
 
             // Fetch standby weeks for the current month
             try {
-                const standbyRes = await fetch(`/api/standby?start_date=${monthStart}&end_date=${monthEnd}`);
-                const standbyData = await standbyRes.json();
-                setStandbyWeeks(standbyData);
+                const standbyRes = await standbyAPI.getAll({
+                    start_date: monthStart,
+                    end_date: monthEnd,
+                });
+                setStandbyWeeks(standbyRes.data);
             } catch (err) {
                 console.error('Failed to fetch standby weeks:', err);
                 setStandbyWeeks([]);

@@ -15,7 +15,6 @@ import PayRulesManagement from './pages/PayRulesManagement';
 import StandbyManagement from './pages/StandbyManagement';
 import UserManagement from './pages/UserManagement';
 import Profile from './pages/Profile';
-import { systemAPI } from './api';
 import axios from 'axios';
 
 const AUTH_API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
@@ -161,11 +160,6 @@ function FirstRunCheck({ children }) {
 }
 
 function App() {
-    useEffect(() => {
-        // Initialize database on app load
-        systemAPI.init().catch((err) => console.error('Init failed:', err));
-    }, []);
-
     return (
         <AuthProvider>
             <Router>
@@ -216,7 +210,7 @@ function App() {
                         <Route
                             path="/calendar-advanced"
                             element={
-                                <ProtectedRoute>
+                                <ProtectedRoute roles={['admin', 'soc_manager', 'shift_coordinator']}>
                                     <ShiftCalendarAdvanced readOnly={false} />
                                 </ProtectedRoute>
                             }
