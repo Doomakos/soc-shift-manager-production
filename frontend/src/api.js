@@ -92,6 +92,8 @@ export const payRuleAPI = {
     update: (id, data) => api.put(`/pay-rules/${id}`, data),
     validate: () => api.get('/pay-rules/validate'),
     evaluate: (data) => api.post('/pay-rules/evaluate', data),
+    audit: () => api.get('/pay-rules/audit'),
+    recreateGreekDefaults: () => api.post('/pay-rules/recreate-greek-defaults'),
 };
 
 // Analytics API

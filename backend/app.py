@@ -774,10 +774,36 @@ def get_hour_multiplier(current_datetime, analyst_id, scoped_rules, legacy_multi
             best_multiplier = rule_multiplier
             best_match = rule
 
-    if best_match:
-        return float(best_match.multiplier), f"custom:{best_match.rule_name}"
+    legacy_multiplier, legacy_rule_type = legacy_hour_multiplier(
+        current_datetime,
+        analyst_id,
+        legacy_multipliers,
+    )
 
-    return legacy_hour_multiplier(current_datetime, analyst_id, legacy_multipliers)
+    def rule_specificity_from_rule_type(rule_type):
+        if rule_type in ("sunday_night", "holiday_night", "sixth_night"):
+            return 2
+        if rule_type in ("sunday_day", "holiday_day", "sixth_day", "night"):
+            return 1
+        return 0
+
+    legacy_score = rule_specificity_from_rule_type(legacy_rule_type)
+
+    if best_match is None:
+        return legacy_multiplier, legacy_rule_type
+
+    custom_multiplier = float(best_match.multiplier)
+    custom_rule_name = f"custom:{best_match.rule_name}"
+
+    # Prefer the rule with higher specificity; on tie prefer higher multiplier.
+    if best_score > legacy_score:
+        return custom_multiplier, custom_rule_name
+    if best_score < legacy_score:
+        return legacy_multiplier, legacy_rule_type
+
+    if custom_multiplier >= legacy_multiplier:
+        return custom_multiplier, custom_rule_name
+    return legacy_multiplier, legacy_rule_type
 
 
 def evaluate_pay_rule_for_datetime(target_datetime, analyst_id=None):
@@ -868,6 +894,80 @@ def get_pay_rule_configuration_warnings():
                 )
 
     return warnings
+
+
+def get_greek_default_rule_payloads():
+    """Default rules aligned with Greek labor law for SOC analysts."""
+    return [
+        {
+            "rule_name": "Default Base",
+            "rule_type": build_scoped_rule_type(None, None, None),
+            "multiplier": 1.00,
+            "description": "Default multiplier for all days and all hours",
+        },
+        {
+            "rule_name": "Night Premium",
+            "rule_type": build_scoped_rule_type(None, "22:00", "06:00"),
+            "multiplier": 1.25,
+            "description": "Night hours premium (22:00-06:00)",
+        },
+        {
+            "rule_name": "Sunday Premium",
+            "rule_type": build_scoped_rule_type(6, None, None),
+            "multiplier": 1.75,
+            "description": "Sunday all-day premium",
+        },
+        {
+            "rule_name": "Sunday Night Premium",
+            "rule_type": build_scoped_rule_type(6, "22:00", "06:00"),
+            "multiplier": 2.00,
+            "description": "Sunday night premium",
+        },
+        {
+            "rule_name": "Holiday Day Premium",
+            "rule_type": "holiday_day",
+            "multiplier": 1.75,
+            "description": "Greek national holiday daytime premium",
+        },
+        {
+            "rule_name": "Holiday Night Premium",
+            "rule_type": "holiday_night",
+            "multiplier": 2.00,
+            "description": "Greek national holiday night premium",
+        },
+        {
+            "rule_name": "Sixth Day Premium",
+            "rule_type": "sixth_day",
+            "multiplier": 1.30,
+            "description": "6th consecutive working day premium",
+        },
+        {
+            "rule_name": "Sixth Night Premium",
+            "rule_type": "sixth_night",
+            "multiplier": 1.55,
+            "description": "6th consecutive working night premium",
+        },
+    ]
+
+
+def get_pay_rules_audit():
+    """Return summary of current active rules and comparison against Greek defaults."""
+    active_rules = PayRule.query.filter_by(active=True).all()
+    defaults = get_greek_default_rule_payloads()
+
+    active_names = {rule.rule_name for rule in active_rules}
+    default_names = {rule["rule_name"] for rule in defaults}
+
+    missing_defaults = sorted(list(default_names - active_names))
+    extra_custom = sorted(list(active_names - default_names))
+
+    return {
+        "active_count": len(active_rules),
+        "missing_default_rules": missing_defaults,
+        "extra_custom_rules": extra_custom,
+        "warnings": get_pay_rule_configuration_warnings(),
+        "active_rules": [r.to_dict() for r in active_rules],
+    }
 
 
 def calculate_hours_between_times(start_time, end_time):
@@ -1926,14 +2026,26 @@ def create_pay_rule():
         else:
             final_rule_type = build_scoped_rule_type(day_of_week, start_time, end_time)
 
-        rule = PayRule(
-            rule_name=data["rule_name"],
-            rule_type=final_rule_type,
-            multiplier=multiplier,
-            description=data.get("description"),
-            active=data.get("active", True),
-        )
-        db.session.add(rule)
+        rule_name = (data.get("rule_name") or "").strip()
+        if not rule_name:
+            return jsonify({"error": "rule_name is required"}), 400
+
+        existing = PayRule.query.filter_by(rule_name=rule_name).first()
+        if existing:
+            existing.rule_type = final_rule_type
+            existing.multiplier = multiplier
+            existing.description = data.get("description")
+            existing.active = data.get("active", True)
+            rule = existing
+        else:
+            rule = PayRule(
+                rule_name=rule_name,
+                rule_type=final_rule_type,
+                multiplier=multiplier,
+                description=data.get("description"),
+                active=data.get("active", True),
+            )
+            db.session.add(rule)
         db.session.flush()
 
         # Rule changes should immediately affect persisted shift pay values.
@@ -1964,7 +2076,16 @@ def update_pay_rule(rule_id):
     rule.description = data.get("description", rule.description)
 
     if "rule_name" in data and data.get("rule_name"):
-        rule.rule_name = data["rule_name"]
+        requested_name = data["rule_name"].strip()
+        if not requested_name:
+            return jsonify({"error": "rule_name cannot be empty"}), 400
+        name_taken = PayRule.query.filter(
+            PayRule.rule_name == requested_name,
+            PayRule.id != rule.id,
+        ).first()
+        if name_taken:
+            return jsonify({"error": "A pay rule with this name already exists"}), 400
+        rule.rule_name = requested_name
 
     # Legacy rules can still be switched explicitly.
     if data.get("rule_type") in LEGACY_RULE_TYPES:
@@ -2012,33 +2133,7 @@ def initialize_pay_rules():
                 "count": existing_count
             }), 200
         
-        # Default scoped multipliers
-        default_rules = [
-            {
-                "rule_name": "Default Base",
-                "rule_type": build_scoped_rule_type(None, None, None),
-                "multiplier": 1.00,
-                "description": "Default multiplier for all days and all hours",
-            },
-            {
-                "rule_name": "Night Premium",
-                "rule_type": build_scoped_rule_type(None, "22:00", "06:00"),
-                "multiplier": 1.25,
-                "description": "Night hours (22:00-06:00)",
-            },
-            {
-                "rule_name": "Sunday Premium",
-                "rule_type": build_scoped_rule_type(6, None, None),
-                "multiplier": 1.75,
-                "description": "Sunday all-day premium",
-            },
-            {
-                "rule_name": "Sunday Night Premium",
-                "rule_type": build_scoped_rule_type(6, "22:00", "06:00"),
-                "multiplier": 2.00,
-                "description": "Sunday night premium",
-            },
-        ]
+        default_rules = get_greek_default_rule_payloads()
         
         for rule_data in default_rules:
             rule = PayRule(
@@ -2056,6 +2151,51 @@ def initialize_pay_rules():
             "count": len(default_rules)
         }), 201
         
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route("/api/pay-rules/audit", methods=["GET"])
+@role_required(*PAY_RULE_ROLES)
+def audit_pay_rules():
+    """Inspect existing active rules and compare with Greek-law defaults."""
+    return jsonify(get_pay_rules_audit()), 200
+
+
+@app.route("/api/pay-rules/recreate-greek-defaults", methods=["POST"])
+@role_required(*PAY_RULE_ROLES)
+def recreate_greek_default_pay_rules():
+    """Deactivate all current rules and recreate the Greek-law default set."""
+    try:
+        for rule in PayRule.query.all():
+            rule.active = False
+
+        for default_rule in get_greek_default_rule_payloads():
+            existing = PayRule.query.filter_by(rule_name=default_rule["rule_name"]).first()
+            if existing:
+                existing.rule_type = default_rule["rule_type"]
+                existing.multiplier = default_rule["multiplier"]
+                existing.description = default_rule["description"]
+                existing.active = True
+            else:
+                db.session.add(
+                    PayRule(
+                        rule_name=default_rule["rule_name"],
+                        rule_type=default_rule["rule_type"],
+                        multiplier=default_rule["multiplier"],
+                        description=default_rule["description"],
+                        active=True,
+                    )
+                )
+
+        recalculate_shift_records(Shift.query.all())
+        db.session.commit()
+
+        return jsonify({
+            "message": "Greek default pay rules recreated successfully",
+            "audit": get_pay_rules_audit(),
+        }), 200
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": str(e)}), 400
@@ -2443,35 +2583,16 @@ def initialize_database():
 
         # Add default pay rules if they don't exist
         if PayRule.query.count() == 0:
-            default_rules = [
-                PayRule(
-                    rule_name="Default Base",
-                    rule_type=build_scoped_rule_type(None, None, None),
-                    multiplier=1.0,
-                    description="Default multiplier for all days and all hours",
-                ),
-                PayRule(
-                    rule_name="Sunday Premium",
-                    rule_type=build_scoped_rule_type(6, None, None),
-                    multiplier=1.75,
-                    description="Sunday all-day premium",
-                ),
-                PayRule(
-                    rule_name="Night Premium",
-                    rule_type=build_scoped_rule_type(None, "22:00", "06:00"),
-                    multiplier=1.25,
-                    description="Night hours premium",
-                ),
-                PayRule(
-                    rule_name="Sunday Night Premium",
-                    rule_type=build_scoped_rule_type(6, "22:00", "06:00"),
-                    multiplier=2.0,
-                    description="Sunday night premium",
-                ),
-            ]
-
-            for rule in default_rules:
-                db.session.add(rule)
+            for payload in get_greek_default_rule_payloads():
+                db.session.add(
+                    PayRule(
+                        rule_name=payload["rule_name"],
+                        rule_type=payload["rule_type"],
+                        multiplier=payload["multiplier"],
+                        description=payload["description"],
+                        active=True,
+                    )
+                )
 
             db.session.commit()
 

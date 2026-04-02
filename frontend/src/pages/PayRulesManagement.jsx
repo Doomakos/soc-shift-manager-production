@@ -21,6 +21,7 @@ export default function PayRulesManagement() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [showForm, setShowForm] = useState(false);
+    const [auditData, setAuditData] = useState(null);
     const [formData, setFormData] = useState({
         rule_name: '',
         day_of_week: '',
@@ -113,6 +114,33 @@ export default function PayRulesManagement() {
         }
     };
 
+    const handleAudit = async () => {
+        try {
+            const response = await payRuleAPI.audit();
+            setAuditData(response.data);
+            setConfigWarnings(response.data.warnings || []);
+            setError(null);
+        } catch (err) {
+            console.error(err);
+            setError(err.response?.data?.error || 'Failed to audit pay rules');
+        }
+    };
+
+    const handleRecreateDefaults = async () => {
+        const confirmed = window.confirm('This will deactivate current rules and recreate Greek-law defaults. Continue?');
+        if (!confirmed) return;
+
+        try {
+            await payRuleAPI.recreateGreekDefaults();
+            await fetchRules();
+            await handleAudit();
+            setError(null);
+        } catch (err) {
+            console.error(err);
+            setError(err.response?.data?.error || 'Failed to recreate Greek defaults');
+        }
+    };
+
     if (loading) {
         return (
             <div className="flex justify-center items-center h-96">
@@ -125,13 +153,38 @@ export default function PayRulesManagement() {
         <div className="app-page">
             <div className="flex justify-between items-center mb-6">
                 <h1 className="page-title">Pay Rules Configuration</h1>
-                <button
-                    onClick={() => setShowForm(!showForm)}
-                    className="btn-primary"
-                >
-                    <Plus size={20} /> Add Pay Rule
-                </button>
+                <div className="flex gap-2">
+                    <button
+                        type="button"
+                        onClick={handleAudit}
+                        className="btn-secondary"
+                    >
+                        Audit Rules
+                    </button>
+                    <button
+                        type="button"
+                        onClick={handleRecreateDefaults}
+                        className="rounded-md bg-amber-600 px-4 py-2 font-semibold text-white hover:bg-amber-700"
+                    >
+                        Recreate Greek Defaults
+                    </button>
+                    <button
+                        onClick={() => setShowForm(!showForm)}
+                        className="btn-primary"
+                    >
+                        <Plus size={20} /> Add Pay Rule
+                    </button>
+                </div>
             </div>
+
+            {auditData && (
+                <div className="surface-card mb-6 p-4">
+                    <h3 className="mb-2 text-lg font-semibold">Rules Audit</h3>
+                    <p className="text-sm text-gray-700">Active rules: {auditData.active_count}</p>
+                    <p className="text-sm text-gray-700">Missing Greek defaults: {auditData.missing_default_rules?.length || 0}</p>
+                    <p className="text-sm text-gray-700">Extra custom rules: {auditData.extra_custom_rules?.length || 0}</p>
+                </div>
+            )}
 
             {error && (
                 <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
