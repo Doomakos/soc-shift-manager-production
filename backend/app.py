@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import or_
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_jwt_extended import (
@@ -1174,6 +1175,283 @@ def recalculate_shift_records(shifts):
     return updated_count, skipped_count
 
 
+AUTO_GENERATED_NOTE_PREFIX = "[AUTO-GENERATED]"
+DEFAULT_REQUIRED_COVERAGE = {
+    "morning": 1,
+    "evening": 1,
+    "night": 1,
+    "standard": 0,
+}
+
+
+def parse_iso_date(value, field_name):
+    if not value:
+        raise ValueError(f"{field_name} is required")
+    if isinstance(value, datetime):
+        return value.date()
+    if hasattr(value, "year") and hasattr(value, "month") and hasattr(value, "day"):
+        return value
+    return datetime.strptime(value, "%Y-%m-%d").date()
+
+
+def get_dates_in_range(start_date, end_date):
+    days = []
+    current = start_date
+    while current <= end_date:
+        days.append(current)
+        current += timedelta(days=1)
+    return days
+
+
+def build_shift_interval(shift_date, shift_type):
+    template = SHIFT_TEMPLATES[shift_type]
+    start_time = datetime.strptime(template["start"], "%H:%M:%S").time()
+    end_time = datetime.strptime(template["end"], "%H:%M:%S").time()
+
+    start_dt = datetime.combine(shift_date, start_time)
+    end_dt = datetime.combine(shift_date, end_time)
+    if end_dt <= start_dt:
+        end_dt += timedelta(days=1)
+    return start_dt, end_dt
+
+
+def get_week_start(date_value):
+    return date_value - timedelta(days=date_value.weekday())
+
+
+def normalize_required_coverage(required_coverage):
+    normalized = dict(DEFAULT_REQUIRED_COVERAGE)
+    if not isinstance(required_coverage, dict):
+        return normalized
+
+    for shift_type, value in required_coverage.items():
+        if shift_type not in SHIFT_TEMPLATES:
+            continue
+        if shift_type in ("day_off", "approved_leave"):
+            continue
+        try:
+            count = int(value)
+            if count < 0:
+                continue
+            normalized[shift_type] = count
+        except (TypeError, ValueError):
+            continue
+
+    return normalized
+
+
+def analyst_has_work_shift_on_date(intervals, target_date):
+    for start_dt, _, shift_type in intervals:
+        if shift_type in ("day_off", "approved_leave"):
+            continue
+        if start_dt.date() == target_date:
+            return True
+    return False
+
+
+def violates_min_rest(intervals, candidate_start, candidate_end, min_rest_hours):
+    sorted_intervals = sorted(intervals + [(candidate_start, candidate_end, "candidate")], key=lambda x: x[0])
+    for idx in range(len(sorted_intervals) - 1):
+        current_end = sorted_intervals[idx][1]
+        next_start = sorted_intervals[idx + 1][0]
+        if next_start < current_end:
+            return True
+        rest_hours = (next_start - current_end).total_seconds() / 3600
+        if rest_hours < min_rest_hours:
+            return True
+    return False
+
+
+def build_coverage_counts(start_date, end_date, required_coverage, planned_shifts=None):
+    counts = {}
+    tracked_shift_types = [k for k, v in required_coverage.items() if v > 0]
+
+    existing_shifts = Shift.query.filter(
+        Shift.shift_date >= start_date,
+        Shift.shift_date <= end_date,
+        Shift.shift_type.in_(tracked_shift_types),
+    ).all()
+
+    for shift in existing_shifts:
+        key = (shift.shift_date.isoformat(), shift.shift_type)
+        counts[key] = counts.get(key, 0) + 1
+
+    for shift in planned_shifts or []:
+        key = (shift["shift_date"], shift["shift_type"])
+        counts[key] = counts.get(key, 0) + 1
+
+    return counts
+
+
+def build_coverage_gap_report(start_date, end_date, required_coverage, planned_shifts=None):
+    coverage_counts = build_coverage_counts(start_date, end_date, required_coverage, planned_shifts)
+    gaps = []
+
+    for day in get_dates_in_range(start_date, end_date):
+        day_str = day.isoformat()
+        for shift_type, required_count in required_coverage.items():
+            if required_count <= 0:
+                continue
+            assigned = coverage_counts.get((day_str, shift_type), 0)
+            missing = max(required_count - assigned, 0)
+            if missing > 0:
+                gaps.append(
+                    {
+                        "date": day_str,
+                        "shift_type": shift_type,
+                        "required": required_count,
+                        "assigned": assigned,
+                        "missing": missing,
+                    }
+                )
+
+    return gaps
+
+
+def generate_shift_plan(start_date, end_date, required_coverage, max_weekly_hours=40, min_rest_hours=12):
+    planners = Analyst.query.filter_by(status="active").order_by(Analyst.id.asc()).all()
+    if not planners:
+        return {
+            "planned_shifts": [],
+            "warnings": ["No active analysts available for scheduling."],
+        }
+
+    planning_start = min(get_week_start(start_date), start_date - timedelta(days=1))
+    existing_shifts = Shift.query.filter(
+        Shift.shift_date >= planning_start,
+        Shift.shift_date <= end_date,
+    ).order_by(Shift.shift_date.asc()).all()
+
+    state = {}
+    for analyst in planners:
+        state[analyst.id] = {
+            "intervals": [],
+            "weekly_hours": {},
+            "blocked_dates": set(),
+            "name": f"{analyst.first_name} {analyst.last_name}",
+        }
+
+    for shift in existing_shifts:
+        if shift.analyst_id not in state:
+            continue
+
+        analyst_state = state[shift.analyst_id]
+        if shift.shift_type in ("day_off", "approved_leave"):
+            analyst_state["blocked_dates"].add(shift.shift_date)
+            continue
+
+        start_dt = datetime.combine(shift.shift_date, shift.start_time)
+        end_dt = datetime.combine(shift.shift_date, shift.end_time)
+        if end_dt <= start_dt:
+            end_dt += timedelta(days=1)
+
+        analyst_state["intervals"].append((start_dt, end_dt, shift.shift_type))
+
+        week_key = get_week_start(shift.shift_date).isoformat()
+        analyst_state["weekly_hours"][week_key] = analyst_state["weekly_hours"].get(week_key, 0.0) + float(
+            shift.hours_worked or 0.0
+        )
+
+    for analyst_state in state.values():
+        analyst_state["intervals"].sort(key=lambda x: x[0])
+
+    planned_shifts = []
+    warnings = []
+
+    for day in get_dates_in_range(start_date, end_date):
+        day_str = day.isoformat()
+        week_key = get_week_start(day).isoformat()
+
+        for shift_type, required_count in required_coverage.items():
+            if required_count <= 0:
+                continue
+
+            current_count = (
+                Shift.query.filter_by(shift_date=day, shift_type=shift_type).count()
+                + sum(1 for p in planned_shifts if p["shift_date"] == day_str and p["shift_type"] == shift_type)
+            )
+
+            while current_count < required_count:
+                candidate_start, candidate_end = build_shift_interval(day, shift_type)
+                shift_hours = (candidate_end - candidate_start).total_seconds() / 3600
+
+                best_candidate_id = None
+                best_candidate_score = None
+
+                for analyst in planners:
+                    analyst_state = state[analyst.id]
+
+                    if day in analyst_state["blocked_dates"]:
+                        continue
+
+                    if analyst_has_work_shift_on_date(analyst_state["intervals"], day):
+                        continue
+
+                    current_week_hours = analyst_state["weekly_hours"].get(week_key, 0.0)
+                    if current_week_hours + shift_hours > float(max_weekly_hours):
+                        continue
+
+                    if violates_min_rest(
+                        analyst_state["intervals"],
+                        candidate_start,
+                        candidate_end,
+                        float(min_rest_hours),
+                    ):
+                        continue
+
+                    # Lower score = better candidate (more balanced total weekly workload).
+                    score = current_week_hours
+                    if best_candidate_score is None or score < best_candidate_score:
+                        best_candidate_score = score
+                        best_candidate_id = analyst.id
+
+                if best_candidate_id is None:
+                    warnings.append(
+                        f"Unable to fully cover {shift_type} on {day_str} while respecting constraints"
+                    )
+                    break
+
+                assignee = state[best_candidate_id]
+                assignee["intervals"].append((candidate_start, candidate_end, shift_type))
+                assignee["intervals"].sort(key=lambda x: x[0])
+                assignee["weekly_hours"][week_key] = assignee["weekly_hours"].get(week_key, 0.0) + shift_hours
+
+                planned_shifts.append(
+                    {
+                        "analyst_id": best_candidate_id,
+                        "analyst_name": assignee["name"],
+                        "shift_date": day_str,
+                        "shift_type": shift_type,
+                        "start_time": SHIFT_TEMPLATES[shift_type]["start"],
+                        "end_time": SHIFT_TEMPLATES[shift_type]["end"],
+                        "hours_worked": round(shift_hours, 2),
+                    }
+                )
+                current_count += 1
+
+    return {
+        "planned_shifts": planned_shifts,
+        "warnings": sorted(set(warnings)),
+    }
+
+
+def is_auto_generated_shift(shift):
+    return bool(shift.notes and shift.notes.startswith(AUTO_GENERATED_NOTE_PREFIX))
+
+
+def parse_generation_request(data):
+    start_date = parse_iso_date(data.get("start_date"), "start_date")
+    end_date = parse_iso_date(data.get("end_date"), "end_date")
+    if end_date < start_date:
+        raise ValueError("end_date must be on or after start_date")
+
+    required_coverage = normalize_required_coverage(data.get("required_coverage"))
+    max_weekly_hours = float(data.get("max_weekly_hours", 40))
+    min_rest_hours = float(data.get("min_rest_hours", 12))
+
+    return start_date, end_date, required_coverage, max_weekly_hours, min_rest_hours
+
+
 # ==================== API ENDPOINTS - AUTHENTICATION ====================
 
 @app.route("/api/auth/setup", methods=["GET", "POST"])
@@ -1763,8 +2041,199 @@ def get_shifts():
     if end_date:
         query = query.filter(Shift.shift_date <= end_date)
 
+    assignment_mode = request.args.get("assignment_mode")
+    if assignment_mode == "manual":
+        query = query.filter(or_(Shift.notes.is_(None), ~Shift.notes.like(f"{AUTO_GENERATED_NOTE_PREFIX}%")))
+    elif assignment_mode == "auto":
+        query = query.filter(Shift.notes.like(f"{AUTO_GENERATED_NOTE_PREFIX}%"))
+
     shifts = query.order_by(Shift.shift_date.desc()).all()
     return jsonify([s.to_dict() for s in shifts]), 200
+
+
+@app.route("/api/shifts/coverage-gaps", methods=["GET"])
+@jwt_required()
+def get_shift_coverage_gaps():
+    """Report missing required shift coverage in a date range."""
+    start_date_raw = request.args.get("start_date")
+    end_date_raw = request.args.get("end_date")
+
+    try:
+        start_date = parse_iso_date(start_date_raw, "start_date")
+        end_date = parse_iso_date(end_date_raw, "end_date")
+        if end_date < start_date:
+            return jsonify({"error": "end_date must be on or after start_date"}), 400
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    required_coverage = normalize_required_coverage(None)
+    gaps = build_coverage_gap_report(start_date, end_date, required_coverage)
+    return jsonify(
+        {
+            "start_date": start_date.isoformat(),
+            "end_date": end_date.isoformat(),
+            "required_coverage": required_coverage,
+            "total_gaps": len(gaps),
+            "gaps": gaps,
+        }
+    ), 200
+
+
+@app.route("/api/shifts/auto-generate/preview", methods=["POST"])
+@role_required(*MANAGEMENT_ROLES)
+def preview_auto_generated_shifts():
+    """Generate a safe preview plan without persisting any shifts."""
+    data = request.json or {}
+
+    try:
+        start_date, end_date, required_coverage, max_weekly_hours, min_rest_hours = parse_generation_request(data)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    plan = generate_shift_plan(
+        start_date,
+        end_date,
+        required_coverage,
+        max_weekly_hours=max_weekly_hours,
+        min_rest_hours=min_rest_hours,
+    )
+
+    gaps_before = build_coverage_gap_report(start_date, end_date, required_coverage)
+    gaps_after = build_coverage_gap_report(
+        start_date,
+        end_date,
+        required_coverage,
+        planned_shifts=plan["planned_shifts"],
+    )
+
+    return jsonify(
+        {
+            "mode": "preview",
+            "start_date": start_date.isoformat(),
+            "end_date": end_date.isoformat(),
+            "required_coverage": required_coverage,
+            "constraints": {
+                "max_weekly_hours": max_weekly_hours,
+                "min_rest_hours": min_rest_hours,
+            },
+            "planned_count": len(plan["planned_shifts"]),
+            "planned_shifts": plan["planned_shifts"],
+            "gaps_before": gaps_before,
+            "gaps_after": gaps_after,
+            "warnings": plan["warnings"],
+        }
+    ), 200
+
+
+@app.route("/api/shifts/auto-generate/apply", methods=["POST"])
+@role_required(*MANAGEMENT_ROLES)
+def apply_auto_generated_shifts():
+    """Persist an auto-generated plan while keeping manual assignment flow separate."""
+    data = request.json or {}
+    current_user = get_current_user()
+
+    try:
+        start_date, end_date, required_coverage, max_weekly_hours, min_rest_hours = parse_generation_request(data)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    plan = generate_shift_plan(
+        start_date,
+        end_date,
+        required_coverage,
+        max_weekly_hours=max_weekly_hours,
+        min_rest_hours=min_rest_hours,
+    )
+
+    note_suffix = (data.get("notes") or "System generated from approved preview").strip()
+    created = []
+    skipped = []
+
+    try:
+        for planned in plan["planned_shifts"]:
+            shift_date_obj = datetime.strptime(planned["shift_date"], "%Y-%m-%d").date()
+            template = SHIFT_TEMPLATES[planned["shift_type"]]
+            start_time_obj = datetime.strptime(template["start"], "%H:%M:%S").time()
+            end_time_obj = datetime.strptime(template["end"], "%H:%M:%S").time()
+
+            existing_same_slot = Shift.query.filter_by(
+                analyst_id=planned["analyst_id"],
+                shift_date=shift_date_obj,
+            ).first()
+            if existing_same_slot:
+                skipped.append(
+                    {
+                        "analyst_id": planned["analyst_id"],
+                        "shift_date": planned["shift_date"],
+                        "shift_type": planned["shift_type"],
+                        "reason": "Analyst already has a shift on this date",
+                    }
+                )
+                continue
+
+            has_overlap, overlap_msg = check_shift_overlap(
+                planned["analyst_id"],
+                shift_date_obj,
+                start_time_obj,
+                end_time_obj,
+            )
+            if has_overlap:
+                skipped.append(
+                    {
+                        "analyst_id": planned["analyst_id"],
+                        "shift_date": planned["shift_date"],
+                        "shift_type": planned["shift_type"],
+                        "reason": overlap_msg,
+                    }
+                )
+                continue
+
+            pay_calc = calculate_shift_pay(
+                planned["analyst_id"],
+                shift_date_obj,
+                start_time_obj,
+                end_time_obj,
+                planned["shift_type"],
+            )
+
+            shift = Shift(
+                analyst_id=planned["analyst_id"],
+                shift_date=shift_date_obj,
+                start_time=start_time_obj,
+                end_time=end_time_obj,
+                shift_type=planned["shift_type"],
+                work_location="office",
+                hours_worked=pay_calc["total_hours"],
+                pay_multiplier=pay_calc["avg_multiplier"],
+                base_pay=pay_calc["base_pay"],
+                total_pay=pay_calc["total_pay"],
+                notes=f"{AUTO_GENERATED_NOTE_PREFIX} {note_suffix}",
+                created_by=current_user.id if current_user else None,
+                modified_by=current_user.id if current_user else None,
+            )
+            db.session.add(shift)
+            db.session.flush()
+            created.append(shift.to_dict())
+
+        db.session.commit()
+    except Exception as exc:
+        db.session.rollback()
+        return jsonify({"error": str(exc)}), 400
+
+    gaps_after = build_coverage_gap_report(start_date, end_date, required_coverage)
+    return jsonify(
+        {
+            "mode": "apply",
+            "start_date": start_date.isoformat(),
+            "end_date": end_date.isoformat(),
+            "created_count": len(created),
+            "skipped_count": len(skipped),
+            "created": created,
+            "skipped": skipped,
+            "warnings": plan["warnings"],
+            "remaining_gaps": gaps_after,
+        }
+    ), 200
 
 
 @app.route("/api/shifts", methods=["POST"])

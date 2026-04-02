@@ -85,6 +85,9 @@ export const shiftAPI = {
     update: (id, data) => api.put(`/shifts/${id}`, data),
     delete: (id) => api.delete(`/shifts/${id}`),
     getTemplates: () => api.get('/shift-templates'),
+    getCoverageGaps: (params) => api.get('/shifts/coverage-gaps', { params }),
+    previewAutoGenerate: (data) => api.post('/shifts/auto-generate/preview', data),
+    applyAutoGenerate: (data) => api.post('/shifts/auto-generate/apply', data),
 };// Pay Rules API
 export const payRuleAPI = {
     getAll: () => api.get('/pay-rules'),
