@@ -1,0 +1,29 @@
+# Fly.io configuration for SOC Shift Manager
+app = "soc-shift-manager"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  FLASK_ENV = "production"
+  PORT = "4443"
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 4443
+  processes = ["app"]
+
+  [[services.ports]]
+    port = 443
+    handlers = ["tls", "http"]
+    force_https = true
+
+  [[services.ports]]
+    port = 80
+    handlers = ["http"]
+
+[mounts]
+  source = "soc_data"
+  destination = "/app/instance"
+  processes = ["app"]
