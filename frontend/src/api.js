@@ -90,6 +90,8 @@ export const payRuleAPI = {
     getAll: () => api.get('/pay-rules'),
     create: (data) => api.post('/pay-rules', data),
     update: (id, data) => api.put(`/pay-rules/${id}`, data),
+    validate: () => api.get('/pay-rules/validate'),
+    evaluate: (data) => api.post('/pay-rules/evaluate', data),
 };
 
 // Analytics API

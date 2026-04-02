@@ -158,8 +158,8 @@ export default function Analytics() {
     }
 
     return (
-        <div className="container mx-auto p-6">
-            <h1 className="text-3xl font-bold mb-2">Analytics & Reports</h1>
+        <div className="app-page">
+            <h1 className="page-title mb-2">Analytics & Reports</h1>
             <p className="text-gray-600 mb-8">Shift metrics for payroll team processing</p>
 
             {/* Tabs */}
@@ -201,9 +201,9 @@ export default function Analytics() {
             </div>
 
             {/* Filters */}
-            <div className="bg-white p-4 rounded-lg shadow-md mb-6">
+            <div className="surface-card mb-6 p-4">
                 <h3 className="font-semibold mb-3">Date Range Filter</h3>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                     <div>
                         <div className="relative">
                             <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none z-10" size={18} />

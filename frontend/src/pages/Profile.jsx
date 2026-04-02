@@ -122,8 +122,8 @@ export default function Profile() {
     };
 
     return (
-        <div className="container mx-auto p-6 max-w-4xl">
-            <h1 className="text-3xl font-bold mb-2">My Profile</h1>
+        <div className="app-page max-w-4xl">
+            <h1 className="page-title mb-2">My Profile</h1>
             <p className="text-gray-600 mb-8">View your account information and manage your password</p>
 
             {/* Force Password Change Warning */}
@@ -153,7 +153,7 @@ export default function Profile() {
             )}
 
             {/* Profile Information Card */}
-            <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+            <div className="surface-card mb-6 p-6">
                 <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
                     <User size={24} className="text-indigo-600" />
                     Account Information
@@ -221,7 +221,7 @@ export default function Profile() {
             </div>
 
             {/* Password Change Section */}
-            <div className="bg-white rounded-lg shadow-md p-6">
+            <div className="surface-card p-6">
                 <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
                     <Lock size={24} className="text-indigo-600" />
                     Password & Security

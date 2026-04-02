@@ -263,10 +263,10 @@ export default function UserManagement() {
     }
 
     return (
-        <div className="container mx-auto p-6">
+        <div className="app-page">
             <div className="flex justify-between items-center mb-6">
                 <div>
-                    <h1 className="text-3xl font-bold mb-2">User Management</h1>
+                    <h1 className="page-title mb-2">User Management</h1>
                     <p className="text-gray-600">Manage system users and permissions</p>
                 </div>
                 <button
@@ -274,7 +274,7 @@ export default function UserManagement() {
                         resetForm();
                         setShowCreateModal(true);
                     }}
-                    className="bg-indigo-500 text-white px-4 py-2 rounded hover:bg-indigo-600 flex items-center gap-2"
+                    className="btn-primary"
                 >
                     <UserPlus size={20} />
                     Create User
@@ -282,7 +282,7 @@ export default function UserManagement() {
             </div>
 
             {/* Users Table */}
-            <div className="bg-white rounded-lg shadow-md overflow-hidden">
+            <div className="surface-card overflow-hidden">
                 <div className="overflow-x-auto">
                     <table className="w-full">
                         <thead className="bg-gray-50 border-b">

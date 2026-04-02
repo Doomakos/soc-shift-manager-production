@@ -102,8 +102,8 @@ const StandbyManagement = () => {
     };
 
     return (
-        <div className="container mx-auto px-6 py-8">
-            <h1 className="text-3xl font-bold text-gray-800 mb-6">L2 Standby Management</h1>
+        <div className="app-page">
+            <h1 className="page-title mb-6">L2 Standby Management</h1>
 
             {l2Analysts.length === 0 && (
                 <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6">
@@ -134,7 +134,7 @@ const StandbyManagement = () => {
 
             {/* Assignment Form */}
             {l2Analysts.length > 0 && (
-                <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+                <div className="surface-card mb-6 p-6">
                     <h2 className="text-xl font-semibold text-gray-800 mb-4">Assign Standby Week</h2>
                     <form onSubmit={handleSubmit} className="space-y-4">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -201,7 +201,7 @@ const StandbyManagement = () => {
             )}
 
             {/* Standby Weeks List */}
-            <div className="bg-white rounded-lg shadow-md overflow-hidden">
+            <div className="surface-card overflow-hidden">
                 <div className="px-6 py-4 bg-gray-50 border-b">
                     <h2 className="text-xl font-semibold text-gray-800">Standby Schedule</h2>
                 </div>

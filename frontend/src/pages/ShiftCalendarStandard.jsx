@@ -256,14 +256,14 @@ export default function ShiftCalendarStandard() {
     }
 
     return (
-        <div className="px-2 py-3">
+        <div className="app-page">
             {!canEdit && (
                 <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-2 rounded-lg mb-3">
-                    <strong>📖 Read-Only Mode:</strong> You can view the calendar but cannot create or edit shifts.
+                    <strong>Read-Only Mode:</strong> You can view the calendar but cannot create or edit shifts.
                 </div>
             )}
             <div className="flex justify-between items-center mb-3">
-                <h1 className="text-xl font-bold">Shift Calendar - Standard View</h1>
+                <h1 className="page-title text-xl md:text-2xl">Shift Calendar - Standard View</h1>
                 <div className="flex gap-2">
                     <button
                         onClick={() => setCurrentDate(subMonths(currentDate, 1))}
@@ -298,7 +298,7 @@ export default function ShiftCalendarStandard() {
                                 : 'bg-green-500 hover:bg-green-600 text-white'
                                 }`}
                         >
-                            {bulkMode ? '✖ Cancel' : '📝 Bulk Assign'}
+                            {bulkMode ? 'Cancel Bulk' : 'Bulk Assign'}
                         </button>
                     )}
                     {bulkMode && bulkSelection.length > 0 && (
@@ -325,7 +325,7 @@ export default function ShiftCalendarStandard() {
                         onClick={() => setError(null)}
                         className="text-red-700 hover:text-red-900 font-bold"
                     >
-                        ✕
+                        X
                     </button>
                 </div>
             )}
@@ -335,7 +335,7 @@ export default function ShiftCalendarStandard() {
                 <h2 className="text-lg font-semibold text-gray-700">{monthLabel}</h2>
             </div>
 
-            <div className="bg-white rounded-lg shadow-lg overflow-x-auto">
+            <div className="surface-card overflow-x-auto shadow-lg">
                 <table className="w-full border-collapse text-xs" style={{ tableLayout: 'fixed' }}>
                     <thead>
                         <tr className="bg-blue-500 text-white">
@@ -362,7 +362,7 @@ export default function ShiftCalendarStandard() {
                                         <div className="text-[10px]">{format(day, 'EEE').substring(0, 2)}</div>
                                         <div className="text-xs">{format(day, 'dd')}</div>
                                         {holiday && (
-                                            <div className="text-[8px]">🇬🇷</div>
+                                            <div className="text-[8px]">HOL</div>
                                         )}
                                     </th>
                                 );
@@ -414,11 +414,11 @@ export default function ShiftCalendarStandard() {
                                                         {getShiftTypeLabel(shift.shift_type)}
                                                     </span>
                                                     {shift.work_location === 'remote' && (
-                                                        <span className="text-[8px] leading-none">🏠</span>
+                                                        <span className="text-[8px] leading-none">R</span>
                                                     )}
                                                 </div>
                                             ) : isSelected ? (
-                                                <span className="text-blue-600 font-bold text-xs">✓</span>
+                                                <span className="text-blue-600 font-bold text-xs">OK</span>
                                             ) : (
                                                 <button className="text-gray-400 hover:text-blue-500">
                                                     <Plus size={12} />
@@ -436,7 +436,6 @@ export default function ShiftCalendarStandard() {
                                 <tr>
                                     <td colSpan={days.length + 1} className="border-t-4 border-purple-600 bg-purple-50 p-2 sticky left-0">
                                         <div className="font-semibold text-purple-900 flex items-center gap-2">
-                                            <span className="text-lg">🚨</span>
                                             <span>L2 Standby Schedule</span>
                                         </div>
                                     </td>
@@ -458,7 +457,6 @@ export default function ShiftCalendarStandard() {
                                         <tr key={`standby-${idx}`} className="hover:bg-purple-50">
                                             <td className="border border-gray-300 p-1 font-semibold bg-purple-100 sticky left-0 z-10">
                                                 <div className="flex items-center gap-1">
-                                                    <span className="text-xs text-purple-800">🚨</span>
                                                     <div className="flex flex-col leading-tight">
                                                         <span className="text-[10px] truncate text-purple-900" title={analystStandby.name}>
                                                             {analystStandby.name}
@@ -500,7 +498,7 @@ export default function ShiftCalendarStandard() {
             </div>
 
             {/* Legend */}
-            <div className="mt-6 p-4 bg-white rounded-lg shadow">
+            <div className="surface-card mt-6 p-4">
                 <h3 className="font-semibold mb-3 text-gray-700">Legend</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
@@ -530,11 +528,11 @@ export default function ShiftCalendarStandard() {
                         <h4 className="font-semibold mb-2 text-sm text-gray-600">Symbols:</h4>
                         <div className="space-y-2 text-sm">
                             <div className="flex items-center gap-2">
-                                <span className="text-xl">🏠</span>
+                                <span className="inline-flex h-8 w-8 items-center justify-center rounded bg-slate-200 font-semibold text-slate-700">R</span>
                                 <span>Remote Work</span>
                             </div>
                             <div className="flex items-center gap-2">
-                                <span className="text-xl">🇬🇷</span>
+                                <span className="inline-flex h-8 w-8 items-center justify-center rounded bg-red-100 font-semibold text-red-700">HOL</span>
                                 <span>Greek National Holiday</span>
                             </div>
                             <div className="flex items-center gap-2">
@@ -552,7 +550,7 @@ export default function ShiftCalendarStandard() {
                         </div>
                         <div className="mt-4 p-3 bg-blue-50 rounded border border-blue-200">
                             <p className="text-xs text-gray-700">
-                                <strong>💡 Tip:</strong> Click any cell to assign or edit a shift.
+                                <strong>Tip:</strong> Click any cell to assign or edit a shift.
                                 Empty cells show a + icon to add new shifts.
                             </p>
                         </div>
@@ -676,8 +674,8 @@ export default function ShiftCalendarStandard() {
                                         className="w-full border rounded px-3 py-2"
                                         required
                                     >
-                                        <option value="office">🏢 Office</option>
-                                        <option value="remote">🏠 Remote</option>
+                                        <option value="office">Office</option>
+                                        <option value="remote">Remote</option>
                                     </select>
                                 </div>
                             )}

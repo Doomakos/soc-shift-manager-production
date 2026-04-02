@@ -14,12 +14,18 @@ const DAY_NAMES = [
 
 export default function PayRulesManagement() {
     const [rules, setRules] = useState([]);
+    const [configWarnings, setConfigWarnings] = useState([]);
+    const [previewResult, setPreviewResult] = useState(null);
+    const [previewDate, setPreviewDate] = useState(new Date().toISOString().slice(0, 10));
+    const [previewTime, setPreviewTime] = useState('22:00');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [showForm, setShowForm] = useState(false);
     const [formData, setFormData] = useState({
         rule_name: '',
         day_of_week: '',
+        start_time: '',
+        end_time: '',
         multiplier: 1.0,
         description: '',
     });
@@ -33,12 +39,40 @@ export default function PayRulesManagement() {
             setLoading(true);
             const response = await payRuleAPI.getAll();
             setRules(response.data);
+
+            try {
+                const validationResponse = await payRuleAPI.validate();
+                setConfigWarnings(validationResponse.data.warnings || []);
+            } catch (validationErr) {
+                console.error('Failed to validate pay rule configuration:', validationErr);
+                setConfigWarnings([]);
+            }
+
             setError(null);
         } catch (err) {
             setError('Failed to load pay rules');
             console.error(err);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handlePreview = async () => {
+        if (!previewDate || !previewTime) {
+            setError('Please select both preview date and time');
+            return;
+        }
+
+        try {
+            const response = await payRuleAPI.evaluate({
+                date: previewDate,
+                time: previewTime,
+            });
+            setPreviewResult(response.data);
+            setError(null);
+        } catch (err) {
+            console.error(err);
+            setError(err.response?.data?.error || 'Failed to evaluate preview');
         }
     };
 
@@ -49,6 +83,8 @@ export default function PayRulesManagement() {
                 ...formData,
                 day_of_week:
                     formData.day_of_week === '' ? null : parseInt(formData.day_of_week),
+                start_time: formData.start_time || null,
+                end_time: formData.end_time || null,
             };
             await payRuleAPI.create(data);
             fetchRules();
@@ -56,6 +92,8 @@ export default function PayRulesManagement() {
             setFormData({
                 rule_name: '',
                 day_of_week: '',
+                start_time: '',
+                end_time: '',
                 multiplier: 1.0,
                 description: '',
             });
@@ -84,12 +122,12 @@ export default function PayRulesManagement() {
     }
 
     return (
-        <div className="container mx-auto p-6">
+        <div className="app-page">
             <div className="flex justify-between items-center mb-6">
-                <h1 className="text-3xl font-bold">Pay Rules Configuration</h1>
+                <h1 className="page-title">Pay Rules Configuration</h1>
                 <button
                     onClick={() => setShowForm(!showForm)}
-                    className="bg-blue-500 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-600"
+                    className="btn-primary"
                 >
                     <Plus size={20} /> Add Pay Rule
                 </button>
@@ -101,10 +139,55 @@ export default function PayRulesManagement() {
                 </div>
             )}
 
+            {configWarnings.length > 0 && (
+                <div className="mb-6 rounded-lg border border-amber-300 bg-amber-50 p-4">
+                    <h3 className="mb-2 font-semibold text-amber-900">Configuration Warnings</h3>
+                    <ul className="list-disc space-y-1 pl-5 text-sm text-amber-800">
+                        {configWarnings.map((warning) => (
+                            <li key={warning}>{warning}</li>
+                        ))}
+                    </ul>
+                </div>
+            )}
+
+            <div className="surface-card mb-6 p-6">
+                <h2 className="mb-4 text-xl font-semibold">Rule Preview</h2>
+                <p className="mb-4 text-sm text-gray-600">
+                    Simulate which multiplier applies for a specific day and time before changing payroll logic.
+                </p>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+                    <input
+                        type="date"
+                        value={previewDate}
+                        onChange={(e) => setPreviewDate(e.target.value)}
+                        className="border rounded px-3 py-2"
+                    />
+                    <input
+                        type="time"
+                        value={previewTime}
+                        onChange={(e) => setPreviewTime(e.target.value)}
+                        className="border rounded px-3 py-2"
+                    />
+                    <button
+                        type="button"
+                        onClick={handlePreview}
+                        className="btn-primary"
+                    >
+                        Evaluate
+                    </button>
+                    {previewResult && (
+                        <div className="rounded border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm text-indigo-900">
+                            <div><strong>Multiplier:</strong> {previewResult.multiplier}x</div>
+                            <div><strong>Rule:</strong> {previewResult.rule_source}</div>
+                        </div>
+                    )}
+                </div>
+            </div>
+
             {showForm && (
                 <form
                     onSubmit={handleSubmit}
-                    className="bg-white p-6 rounded-lg shadow-md mb-6 border-l-4 border-blue-500"
+                    className="surface-card mb-6 border-l-4 border-blue-500 p-6"
                 >
                     <h2 className="text-xl font-semibold mb-4">Add New Pay Rule</h2>
                     <div className="grid grid-cols-2 gap-4">
@@ -147,6 +230,22 @@ export default function PayRulesManagement() {
                             step="0.05"
                             min="0"
                         />
+                        <input
+                            type="time"
+                            value={formData.start_time}
+                            onChange={(e) =>
+                                setFormData({ ...formData, start_time: e.target.value })
+                            }
+                            className="border rounded px-3 py-2"
+                        />
+                        <input
+                            type="time"
+                            value={formData.end_time}
+                            onChange={(e) =>
+                                setFormData({ ...formData, end_time: e.target.value })
+                            }
+                            className="border rounded px-3 py-2"
+                        />
                         <textarea
                             placeholder="Description"
                             value={formData.description}
@@ -160,14 +259,14 @@ export default function PayRulesManagement() {
                     <div className="flex gap-2 mt-4">
                         <button
                             type="submit"
-                            className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+                            className="rounded-md bg-emerald-600 px-4 py-2 text-white hover:bg-emerald-700"
                         >
                             Create Rule
                         </button>
                         <button
                             type="button"
                             onClick={() => setShowForm(false)}
-                            className="bg-gray-300 text-gray-800 px-4 py-2 rounded hover:bg-gray-400"
+                            className="btn-secondary"
                         >
                             Cancel
                         </button>
@@ -184,7 +283,7 @@ export default function PayRulesManagement() {
                     rules.map((rule) => (
                         <div
                             key={rule.id}
-                            className="bg-white p-4 rounded-lg shadow-md border-l-4 border-indigo-500"
+                            className="surface-card border-l-4 border-indigo-500 p-4"
                         >
                             <div className="flex justify-between items-start">
                                 <div className="flex-1">
@@ -193,6 +292,11 @@ export default function PayRulesManagement() {
                                         {rule.day_of_week !== null
                                             ? `Applies on: ${DAY_NAMES[rule.day_of_week]}`
                                             : 'Applies on: All Days (Default)'}
+                                    </p>
+                                    <p className="text-gray-600 text-sm">
+                                        {rule.start_time && rule.end_time
+                                            ? `Time range: ${rule.start_time} - ${rule.end_time}`
+                                            : 'Time range: Full day'}
                                     </p>
                                     <p className="text-gray-700 font-semibold mt-2">
                                         Multiplier: {rule.multiplier}x
@@ -230,7 +334,7 @@ export default function PayRulesManagement() {
                         • <strong>1.75x</strong> = +75% bonus
                     </li>
                     <li>
-                        • Rules are applied automatically based on the shift date
+                        • Rules can target all days, a specific weekday, or a time range
                     </li>
                 </ul>
             </div>

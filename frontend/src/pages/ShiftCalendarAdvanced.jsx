@@ -342,14 +342,14 @@ export default function ShiftCalendar() {
     }
 
     return (
-        <div className="container mx-auto p-6">
+        <div className="app-page">
             {!canEdit && (
                 <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-2 rounded-lg mb-3">
-                    <strong>📖 Read-Only Mode:</strong> You can view the calendar but cannot create or edit shifts.
+                    <strong>Read-Only Mode:</strong> You can view the calendar but cannot create or edit shifts.
                 </div>
             )}
             <div className="flex justify-between items-center mb-6">
-                <h1 className="text-3xl font-bold">Shift Calendar</h1>
+                <h1 className="page-title">Shift Calendar</h1>
                 <div className="flex gap-2">
                     <button
                         onClick={() => setCurrentDate(subMonths(currentDate, 1))}
@@ -374,9 +374,9 @@ export default function ShiftCalendar() {
 
             {/* Quick Assign Panel - Compact */}
             {canEdit && (
-                <div className="mb-3 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg shadow border border-blue-200">
+                <div className="mb-3 rounded-lg border border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50 p-3 shadow">
                     <div className="flex items-center gap-4">
-                        <div className="font-semibold text-sm text-blue-900">⚡ Quick Assign:</div>
+                        <div className="text-sm font-semibold text-blue-900">Quick Assign:</div>
                         <div className="flex gap-2 flex-1">
                             {analysts.map((analyst, index) => (
                                 <button
@@ -403,7 +403,7 @@ export default function ShiftCalendar() {
                                     : 'bg-white border-gray-300'
                                     }`}
                             >
-                                🏢
+                                Office
                             </button>
                             <button
                                 onClick={() => setSelectedWorkLocation('remote')}
@@ -412,7 +412,7 @@ export default function ShiftCalendar() {
                                     : 'bg-white border-gray-300'
                                     }`}
                             >
-                                🏠
+                                Remote
                             </button>
                         </div>
                         {quickAssignMode && selectedAnalyst && (
@@ -423,14 +423,14 @@ export default function ShiftCalendar() {
                                 }}
                                 className="bg-red-500 text-white px-2 py-1 rounded text-xs hover:bg-red-600"
                             >
-                                ✕
+                                X
                             </button>
                         )}
                     </div>
                     {quickAssignMode && selectedAnalyst && (
                         <div className="mt-2 text-xs text-green-800 bg-green-50 rounded px-3 py-1.5 border border-green-300">
-                            <strong>✓ Active:</strong> Click cells to assign {selectedAnalyst.first_name} ({selectedWorkLocation === 'office' ? '🏢 Office' : '🏠 Remote'})
-                            {copiedShift && <span className="ml-3 text-blue-700">| 📋 Right-click to paste copied shift</span>}
+                            <strong>Active:</strong> Click cells to assign {selectedAnalyst.first_name} ({selectedWorkLocation === 'office' ? 'Office' : 'Remote'})
+                            {copiedShift && <span className="ml-3 text-blue-700">| Right-click to paste copied shift</span>}
                         </div>
                     )}
                 </div>
@@ -443,7 +443,7 @@ export default function ShiftCalendar() {
                         onClick={() => setError(null)}
                         className="ml-4 text-red-700 hover:text-red-900"
                     >
-                        ✕
+                        X
                     </button>
                 </div>
             )}
@@ -474,7 +474,7 @@ export default function ShiftCalendar() {
                                         <div className="text-xs">{format(day, 'EEE')}</div>
                                         <div className="text-[10px]">{format(day, 'dd')}</div>
                                         {holiday && (
-                                            <div className="text-[9px] font-normal">🇬🇷</div>
+                                            <div className="text-[9px] font-normal">HOL</div>
                                         )}
                                     </th>
                                 );
@@ -547,7 +547,7 @@ export default function ShiftCalendar() {
                                                                 {/* Hover tooltip */}
                                                                 <div className="hidden group-hover:block absolute bg-gray-800 text-white text-xs p-2 rounded bottom-full left-1/2 transform -translate-x-1/2 mb-2 z-20 whitespace-nowrap">
                                                                     <div className="font-semibold">{analyst?.first_name} {analyst?.last_name}</div>
-                                                                    <div className="text-[10px]">{shift.work_location === 'remote' ? '🏠 Remote' : '🏢 Office'}</div>
+                                                                    <div className="text-[10px]">{shift.work_location === 'remote' ? 'Remote' : 'Office'}</div>
                                                                     {shift.notes && (
                                                                         <div className="text-[10px] mt-1 border-t pt-1">{shift.notes}</div>
                                                                     )}
@@ -560,7 +560,7 @@ export default function ShiftCalendar() {
                                                     })
                                                 ) : (
                                                     <button className="text-gray-400 hover:text-gray-600 text-lg w-full h-full">
-                                                        {quickAssignMode && selectedAnalyst ? '⚡' : '+'}
+                                                        {quickAssignMode && selectedAnalyst ? 'QA' : '+'}
                                                     </button>
                                                 )}
                                             </div>
@@ -586,7 +586,7 @@ export default function ShiftCalendar() {
                             </div>
                             <div className="flex items-center gap-1">
                                 <span className="px-1.5 py-0.5 bg-purple-500 text-white rounded text-[10px] font-bold">JD</span>
-                                <span>Remote (🏠)</span>
+                                <span>Remote</span>
                             </div>
                         </div>
                     </div>
@@ -621,7 +621,7 @@ export default function ShiftCalendar() {
                     </div>
                 </div>
                 <div className="p-2 bg-blue-50 rounded text-[10px] text-gray-700 border border-blue-200">
-                    <div className="font-bold text-xs mb-1 text-blue-900">⚡ Quick Tips:</div>
+                    <div className="font-bold text-xs mb-1 text-blue-900">Quick Tips:</div>
                     <div className="grid grid-cols-2 gap-x-3">
                         <span>• <strong>Quick Mode:</strong> Select analyst, click cells</span>
                         <span>• <strong>Drag:</strong> Clone shifts to other cells</span>

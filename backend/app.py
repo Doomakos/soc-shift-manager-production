@@ -272,6 +272,7 @@ class PayRule(db.Model):
     active = db.Column(db.Boolean, default=True)
 
     def to_dict(self):
+        scope = parse_rule_scope(self.rule_type)
         return {
             "id": self.id,
             "rule_name": self.rule_name,
@@ -279,6 +280,10 @@ class PayRule(db.Model):
             "multiplier": self.multiplier,
             "description": self.description,
             "active": self.active,
+            "day_of_week": scope.get("day_of_week"),
+            "start_time": scope.get("start_time"),
+            "end_time": scope.get("end_time"),
+            "is_legacy": scope.get("is_legacy", False),
         }
 
 
@@ -393,32 +398,181 @@ def role_required(*allowed_roles):
 
 # ==================== HELPER FUNCTIONS ====================
 
-def get_pay_multipliers():
-    """Get pay multipliers from database or return defaults"""
+LEGACY_RULE_TYPES = {
+    "normal",
+    "night",
+    "sunday_day",
+    "sunday_night",
+    "holiday_day",
+    "holiday_night",
+    "sixth_day",
+    "sixth_night",
+}
+
+
+def parse_rule_scope(rule_type):
+    """
+    Parse scoped rule string format: d:<0-6|*>;t:<HH:MM-HH:MM|*>
+    Examples:
+    - d:*;t:* (all days, all times)
+    - d:6;t:* (Sunday all day)
+    - d:*;t:22:00-06:00 (night every day)
+    - d:6;t:22:00-06:00 (Sunday night)
+    """
+    if not rule_type:
+        return {
+            "is_legacy": True,
+            "day_of_week": None,
+            "start_time": None,
+            "end_time": None,
+            "is_all_day": True,
+            "is_all_time": True,
+        }
+
+    if rule_type in LEGACY_RULE_TYPES:
+        return {
+            "is_legacy": True,
+            "day_of_week": None,
+            "start_time": None,
+            "end_time": None,
+            "is_all_day": True,
+            "is_all_time": True,
+        }
+
+    parsed = {
+        "is_legacy": False,
+        "day_of_week": None,
+        "start_time": None,
+        "end_time": None,
+        "is_all_day": True,
+        "is_all_time": True,
+    }
+
+    try:
+        parts = [p.strip() for p in rule_type.split(";") if p.strip()]
+        token_map = {}
+        for part in parts:
+            if ":" not in part:
+                continue
+            key, value = part.split(":", 1)
+            token_map[key.strip()] = value.strip()
+
+        day_token = token_map.get("d", "*")
+        time_token = token_map.get("t", "*")
+
+        if day_token != "*":
+            parsed["day_of_week"] = int(day_token)
+            parsed["is_all_day"] = False
+
+        if time_token != "*":
+            start_str, end_str = time_token.split("-")
+            datetime.strptime(start_str, "%H:%M")
+            datetime.strptime(end_str, "%H:%M")
+            parsed["start_time"] = start_str
+            parsed["end_time"] = end_str
+            parsed["is_all_time"] = False
+    except Exception:
+        parsed["is_legacy"] = True
+
+    return parsed
+
+
+def build_scoped_rule_type(day_of_week=None, start_time=None, end_time=None):
+    day_token = "*" if day_of_week is None else str(int(day_of_week))
+    if start_time and end_time:
+        time_token = f"{start_time}-{end_time}"
+    else:
+        time_token = "*"
+    return f"d:{day_token};t:{time_token}"
+
+
+def is_time_in_range(check_time, start_str, end_str):
+    """Check whether a time is within a range (supports overnight ranges)."""
+    start_time = datetime.strptime(start_str, "%H:%M").time()
+    end_time = datetime.strptime(end_str, "%H:%M").time()
+
+    if start_time == end_time:
+        return True
+
+    if start_time < end_time:
+        return start_time <= check_time < end_time
+
+    # Overnight range (e.g. 22:00-06:00)
+    return check_time >= start_time or check_time < end_time
+
+
+def get_legacy_pay_multipliers():
+    """Legacy multiplier map for backward compatibility."""
     multipliers = {}
     rules = PayRule.query.filter_by(active=True).all()
-    
+
     for rule in rules:
-        multipliers[rule.rule_type] = rule.multiplier
-    
-    # Default Greek labor law multipliers
+        if rule.rule_type in LEGACY_RULE_TYPES:
+            multipliers[rule.rule_type] = rule.multiplier
+
     defaults = {
-        'normal': 1.00,
-        'night': 1.25,
-        'sunday_day': 1.75,
-        'sunday_night': 2.00,
-        'holiday_day': 1.75,
-        'holiday_night': 2.00,
-        'sixth_day': 1.30,
-        'sixth_night': 1.55,
+        "normal": 1.00,
+        "night": 1.25,
+        "sunday_day": 1.75,
+        "sunday_night": 2.00,
+        "holiday_day": 1.75,
+        "holiday_night": 2.00,
+        "sixth_day": 1.30,
+        "sixth_night": 1.55,
     }
-    
-    # Merge with defaults
     for key, value in defaults.items():
         if key not in multipliers:
             multipliers[key] = value
-    
+
     return multipliers
+
+
+def get_active_scoped_rules():
+    """Get active scoped (non-legacy) pay rules ordered by ID."""
+    all_rules = PayRule.query.filter_by(active=True).order_by(PayRule.id.asc()).all()
+    scoped_rules = []
+    for rule in all_rules:
+        parsed = parse_rule_scope(rule.rule_type)
+        if parsed.get("is_legacy"):
+            continue
+        scoped_rules.append((rule, parsed))
+    return scoped_rules
+
+
+def legacy_hour_multiplier(current_datetime, analyst_id, multipliers):
+    """Previous Greek-labor-law priority logic kept as fallback."""
+    date = current_datetime.date()
+    date_str = date.isoformat()
+    hour = current_datetime.hour
+    day_of_week = date.weekday()  # 0=Monday, 6=Sunday
+
+    is_sunday = day_of_week == 6
+    is_holiday = date_str in GREEK_HOLIDAYS
+    is_night = hour >= 22 or hour < 6
+    is_sixth_day = is_sixth_consecutive_day(analyst_id, date) if analyst_id else False
+
+    if is_sunday or is_holiday:
+        if is_night:
+            return (
+                (multipliers["sunday_night"], "sunday_night")
+                if is_sunday
+                else (multipliers["holiday_night"], "holiday_night")
+            )
+        return (
+            (multipliers["sunday_day"], "sunday_day")
+            if is_sunday
+            else (multipliers["holiday_day"], "holiday_day")
+        )
+
+    if is_sixth_day:
+        if is_night:
+            return multipliers["sixth_night"], "sixth_night"
+        return multipliers["sixth_day"], "sixth_day"
+
+    if is_night:
+        return multipliers["night"], "night"
+
+    return multipliers["normal"], "normal"
 
 
 # ==================== VALIDATION FUNCTIONS ====================
@@ -584,41 +738,136 @@ def is_sixth_consecutive_day(analyst_id, check_date):
     return consecutive_count >= 5
 
 
-def get_hour_multiplier(current_datetime, analyst_id, multipliers):
+def get_hour_multiplier(current_datetime, analyst_id, scoped_rules, legacy_multipliers):
     """
-    Get the appropriate multiplier for a specific hour based on Greek labor law.
-    Priority: Sunday/Holiday > 6th Day > Night > Normal
+    Determine multiplier for a datetime segment.
+    Rule selection order:
+    1) Match scoped custom rules by day/time.
+    2) Choose highest specificity (day+time > day-only/time-only > global).
+    3) On tie, choose higher multiplier.
+    4) If no scoped rules match, fallback to legacy logic.
     """
-    date = current_datetime.date()
-    date_str = date.isoformat()
-    hour = current_datetime.hour
-    day_of_week = date.weekday()  # 0=Monday, 6=Sunday
-    
-    is_sunday = (day_of_week == 6)
-    is_holiday = (date_str in GREEK_HOLIDAYS)
-    is_night = (hour >= 22 or hour < 6)  # 22:00-06:00
-    is_sixth_day = is_sixth_consecutive_day(analyst_id, date)
-    
-    # Priority 1: Sunday or Holiday
-    if is_sunday or is_holiday:
-        if is_night:
-            return multipliers['sunday_night'] if is_sunday else multipliers['holiday_night'], 'sunday_night' if is_sunday else 'holiday_night'
-        else:
-            return multipliers['sunday_day'] if is_sunday else multipliers['holiday_day'], 'sunday_day' if is_sunday else 'holiday_day'
-    
-    # Priority 2: 6th consecutive working day
-    if is_sixth_day:
-        if is_night:
-            return multipliers['sixth_night'], 'sixth_night'
-        else:
-            return multipliers['sixth_day'], 'sixth_day'
-    
-    # Priority 3: Regular night
-    if is_night:
-        return multipliers['night'], 'night'
-    
-    # Default: Normal hours
-    return multipliers['normal'], 'normal'
+    weekday = current_datetime.weekday()
+    check_time = current_datetime.time()
+
+    best_match = None
+    best_score = -1
+    best_multiplier = Decimal("-1")
+
+    for rule, scope in scoped_rules:
+        if scope.get("day_of_week") is not None and scope["day_of_week"] != weekday:
+            continue
+
+        if scope.get("start_time") and scope.get("end_time"):
+            if not is_time_in_range(check_time, scope["start_time"], scope["end_time"]):
+                continue
+
+        specificity = 0
+        if scope.get("day_of_week") is not None:
+            specificity += 1
+        if scope.get("start_time") and scope.get("end_time"):
+            specificity += 1
+
+        rule_multiplier = Decimal(str(rule.multiplier))
+        if specificity > best_score or (specificity == best_score and rule_multiplier > best_multiplier):
+            best_score = specificity
+            best_multiplier = rule_multiplier
+            best_match = rule
+
+    if best_match:
+        return float(best_match.multiplier), f"custom:{best_match.rule_name}"
+
+    return legacy_hour_multiplier(current_datetime, analyst_id, legacy_multipliers)
+
+
+def evaluate_pay_rule_for_datetime(target_datetime, analyst_id=None):
+    """Evaluate effective rule/multiplier for a specific datetime point."""
+    scoped_rules = get_active_scoped_rules()
+    legacy_multipliers = get_legacy_pay_multipliers()
+    multiplier, rule_source = get_hour_multiplier(
+        target_datetime,
+        analyst_id,
+        scoped_rules,
+        legacy_multipliers,
+    )
+    return {
+        "datetime": target_datetime.isoformat(),
+        "weekday": target_datetime.weekday(),
+        "multiplier": multiplier,
+        "rule_source": rule_source,
+    }
+
+
+def time_ranges_overlap(start_a, end_a, start_b, end_b):
+    """Detect overlap between two time ranges (supports overnight ranges)."""
+    if not (start_a and end_a and start_b and end_b):
+        return True
+
+    for minute in range(0, 24 * 60):
+        probe_time = (datetime.min + timedelta(minutes=minute)).time()
+        in_a = is_time_in_range(probe_time, start_a, end_a)
+        in_b = is_time_in_range(probe_time, start_b, end_b)
+        if in_a and in_b:
+            return True
+    return False
+
+
+def scopes_overlap(scope_a, scope_b):
+    day_a = scope_a.get("day_of_week")
+    day_b = scope_b.get("day_of_week")
+
+    # Day overlap
+    if day_a is not None and day_b is not None and day_a != day_b:
+        return False
+
+    # Time overlap
+    if scope_a.get("start_time") and scope_a.get("end_time") and scope_b.get("start_time") and scope_b.get("end_time"):
+        return time_ranges_overlap(
+            scope_a["start_time"],
+            scope_a["end_time"],
+            scope_b["start_time"],
+            scope_b["end_time"],
+        )
+
+    # If one side is all-time, they overlap in time where days overlap.
+    return True
+
+
+def get_rule_specificity(scope):
+    score = 0
+    if scope.get("day_of_week") is not None:
+        score += 1
+    if scope.get("start_time") and scope.get("end_time"):
+        score += 1
+    return score
+
+
+def get_pay_rule_configuration_warnings():
+    """Return non-blocking warnings for potentially confusing pay-rule setups."""
+    warnings = []
+    scoped_rules = get_active_scoped_rules()
+
+    has_global_rule = any(
+        scope.get("day_of_week") is None and not scope.get("start_time") and not scope.get("end_time")
+        for _, scope in scoped_rules
+    )
+    if not has_global_rule:
+        warnings.append(
+            "No global base rule found (all days, full day). Add one to make default behavior explicit."
+        )
+
+    for idx, (rule_a, scope_a) in enumerate(scoped_rules):
+        for rule_b, scope_b in scoped_rules[idx + 1:]:
+            if not scopes_overlap(scope_a, scope_b):
+                continue
+            spec_a = get_rule_specificity(scope_a)
+            spec_b = get_rule_specificity(scope_b)
+            if spec_a == spec_b and float(rule_a.multiplier) != float(rule_b.multiplier):
+                warnings.append(
+                    f"Overlapping rules '{rule_a.rule_name}' and '{rule_b.rule_name}' have same specificity; higher multiplier wins on overlap."
+                )
+
+    return warnings
 
 
 def calculate_hours_between_times(start_time, end_time):
@@ -749,8 +998,9 @@ def calculate_shift_pay(analyst_id, shift_date, start_time, end_time, shift_type
     if end_dt <= start_dt:
         end_dt += timedelta(days=1)
     
-    # Get multipliers
-    multipliers = get_pay_multipliers()
+    # Get scoped custom rules plus legacy fallback multipliers
+    scoped_rules = get_active_scoped_rules()
+    legacy_multipliers = get_legacy_pay_multipliers()
     
     # Calculate pay hour by hour
     total_pay = 0
@@ -764,7 +1014,12 @@ def calculate_shift_pay(analyst_id, shift_date, start_time, end_time, shift_type
         segment_hours = (next_dt - current_dt).total_seconds() / 3600
         
         # Get multiplier for this hour
-        multiplier, rule_type = get_hour_multiplier(current_dt, analyst_id, multipliers)
+        multiplier, rule_type = get_hour_multiplier(
+            current_dt,
+            analyst_id,
+            scoped_rules,
+            legacy_multipliers,
+        )
         
         # Calculate pay for this segment
         segment_pay = segment_hours * hourly_rate * multiplier
@@ -791,6 +1046,32 @@ def calculate_shift_pay(analyst_id, shift_date, start_time, end_time, shift_type
         'avg_multiplier': round(avg_multiplier, 3),
         'breakdown': breakdown_details
     }
+
+
+def recalculate_shift_records(shifts):
+    """Recalculate persisted pay fields for a list of shifts."""
+    updated_count = 0
+    skipped_count = 0
+
+    for shift in shifts:
+        try:
+            pay_calc = calculate_shift_pay(
+                shift.analyst_id,
+                shift.shift_date,
+                shift.start_time,
+                shift.end_time,
+                shift.shift_type,
+            )
+            shift.hours_worked = pay_calc["total_hours"]
+            shift.pay_multiplier = pay_calc["avg_multiplier"]
+            shift.base_pay = pay_calc["base_pay"]
+            shift.total_pay = pay_calc["total_pay"]
+            updated_count += 1
+        except Exception as exc:
+            app.logger.warning(f"Failed to recalculate shift {shift.id}: {exc}")
+            skipped_count += 1
+
+    return updated_count, skipped_count
 
 
 # ==================== API ENDPOINTS - AUTHENTICATION ====================
@@ -1577,6 +1858,38 @@ def get_pay_rules():
     return jsonify([r.to_dict() for r in rules]), 200
 
 
+@app.route("/api/pay-rules/validate", methods=["GET"])
+@role_required(*PAY_RULE_ROLES)
+def validate_pay_rules_configuration():
+    """Validate current active pay-rule configuration and return warnings."""
+    warnings = get_pay_rule_configuration_warnings()
+    return jsonify({"warnings": warnings}), 200
+
+
+@app.route("/api/pay-rules/evaluate", methods=["POST"])
+@role_required(*PAY_RULE_ROLES)
+def evaluate_pay_rule():
+    """Preview applied multiplier for a specific date/time input."""
+    data = request.json or {}
+    date_str = data.get("date")
+    time_str = data.get("time")
+    analyst_id = data.get("analyst_id")
+
+    if not date_str or not time_str:
+        return jsonify({"error": "date and time are required"}), 400
+
+    try:
+        parsed_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+        parsed_time = datetime.strptime(time_str, "%H:%M").time()
+        target_datetime = datetime.combine(parsed_date, parsed_time)
+    except ValueError:
+        return jsonify({"error": "Invalid date/time format. Use YYYY-MM-DD and HH:MM"}), 400
+
+    normalized_analyst_id = int(analyst_id) if analyst_id else None
+    result = evaluate_pay_rule_for_datetime(target_datetime, normalized_analyst_id)
+    return jsonify(result), 200
+
+
 @app.route("/api/pay-rules", methods=["POST"])
 @role_required(*PAY_RULE_ROLES)
 def create_pay_rule():
@@ -1584,14 +1897,49 @@ def create_pay_rule():
     data = request.json
 
     try:
+        multiplier = float(data["multiplier"])
+        if multiplier <= 0:
+            return jsonify({"error": "Multiplier must be greater than zero"}), 400
+
+        day_of_week = data.get("day_of_week")
+        start_time = data.get("start_time")
+        end_time = data.get("end_time")
+
+        if day_of_week in ("", None):
+            day_of_week = None
+        else:
+            day_of_week = int(day_of_week)
+            if day_of_week < 0 or day_of_week > 6:
+                return jsonify({"error": "day_of_week must be between 0 (Monday) and 6 (Sunday)"}), 400
+
+        if (start_time and not end_time) or (end_time and not start_time):
+            return jsonify({"error": "Both start_time and end_time are required for time-range rules"}), 400
+
+        if start_time and end_time:
+            datetime.strptime(start_time, "%H:%M")
+            datetime.strptime(end_time, "%H:%M")
+
+        # Legacy support: allow direct legacy rule_type if provided.
+        incoming_rule_type = data.get("rule_type")
+        if incoming_rule_type in LEGACY_RULE_TYPES:
+            final_rule_type = incoming_rule_type
+        else:
+            final_rule_type = build_scoped_rule_type(day_of_week, start_time, end_time)
+
         rule = PayRule(
             rule_name=data["rule_name"],
-            rule_type=data.get("rule_type"),
-            multiplier=data["multiplier"],
+            rule_type=final_rule_type,
+            multiplier=multiplier,
             description=data.get("description"),
             active=data.get("active", True),
         )
         db.session.add(rule)
+        db.session.flush()
+
+        # Rule changes should immediately affect persisted shift pay values.
+        all_shifts = Shift.query.all()
+        recalculate_shift_records(all_shifts)
+
         db.session.commit()
         return jsonify(rule.to_dict()), 201
     except Exception as e:
@@ -1606,9 +1954,46 @@ def update_pay_rule(rule_id):
     rule = PayRule.query.get_or_404(rule_id)
     data = request.json
 
-    rule.multiplier = data.get("multiplier", rule.multiplier)
+    if "multiplier" in data:
+        multiplier = float(data["multiplier"])
+        if multiplier <= 0:
+            return jsonify({"error": "Multiplier must be greater than zero"}), 400
+        rule.multiplier = multiplier
+
     rule.active = data.get("active", rule.active)
     rule.description = data.get("description", rule.description)
+
+    if "rule_name" in data and data.get("rule_name"):
+        rule.rule_name = data["rule_name"]
+
+    # Legacy rules can still be switched explicitly.
+    if data.get("rule_type") in LEGACY_RULE_TYPES:
+        rule.rule_type = data["rule_type"]
+    elif any(key in data for key in ["day_of_week", "start_time", "end_time"]):
+        current_scope = parse_rule_scope(rule.rule_type)
+
+        day_of_week = data.get("day_of_week", current_scope.get("day_of_week"))
+        start_time = data.get("start_time", current_scope.get("start_time"))
+        end_time = data.get("end_time", current_scope.get("end_time"))
+
+        if day_of_week in ("", None):
+            day_of_week = None
+        else:
+            day_of_week = int(day_of_week)
+            if day_of_week < 0 or day_of_week > 6:
+                return jsonify({"error": "day_of_week must be between 0 and 6"}), 400
+
+        if (start_time and not end_time) or (end_time and not start_time):
+            return jsonify({"error": "Both start_time and end_time are required for time-range rules"}), 400
+
+        if start_time and end_time:
+            datetime.strptime(start_time, "%H:%M")
+            datetime.strptime(end_time, "%H:%M")
+
+        rule.rule_type = build_scoped_rule_type(day_of_week, start_time, end_time)
+
+    all_shifts = Shift.query.all()
+    recalculate_shift_records(all_shifts)
 
     db.session.commit()
     return jsonify(rule.to_dict()), 200
@@ -1617,7 +2002,7 @@ def update_pay_rule(rule_id):
 @app.route("/api/pay-rules/initialize", methods=["POST"])
 @role_required(*PAY_RULE_ROLES)
 def initialize_pay_rules():
-    """Initialize default Greek labor law pay rules"""
+    """Initialize default pay rules with day/time scoped logic."""
     try:
         # Check if rules already exist
         existing_count = PayRule.query.count()
@@ -1627,21 +2012,37 @@ def initialize_pay_rules():
                 "count": existing_count
             }), 200
         
-        # Default multipliers according to Greek labor law
+        # Default scoped multipliers
         default_rules = [
-            {"rule_type": "normal", "multiplier": 1.00, "description": "Normal weekday daytime (06:00-22:00)"},
-            {"rule_type": "night", "multiplier": 1.25, "description": "Night hours (22:00-06:00)"},
-            {"rule_type": "sunday_day", "multiplier": 1.75, "description": "Sunday daytime (06:00-22:00)"},
-            {"rule_type": "sunday_night", "multiplier": 2.00, "description": "Sunday night (22:00-06:00)"},
-            {"rule_type": "holiday_day", "multiplier": 1.75, "description": "Holiday daytime (06:00-22:00)"},
-            {"rule_type": "holiday_night", "multiplier": 2.00, "description": "Holiday night (22:00-06:00)"},
-            {"rule_type": "sixth_day", "multiplier": 1.30, "description": "6th consecutive work day daytime"},
-            {"rule_type": "sixth_night", "multiplier": 1.55, "description": "6th consecutive work day night"},
+            {
+                "rule_name": "Default Base",
+                "rule_type": build_scoped_rule_type(None, None, None),
+                "multiplier": 1.00,
+                "description": "Default multiplier for all days and all hours",
+            },
+            {
+                "rule_name": "Night Premium",
+                "rule_type": build_scoped_rule_type(None, "22:00", "06:00"),
+                "multiplier": 1.25,
+                "description": "Night hours (22:00-06:00)",
+            },
+            {
+                "rule_name": "Sunday Premium",
+                "rule_type": build_scoped_rule_type(6, None, None),
+                "multiplier": 1.75,
+                "description": "Sunday all-day premium",
+            },
+            {
+                "rule_name": "Sunday Night Premium",
+                "rule_type": build_scoped_rule_type(6, "22:00", "06:00"),
+                "multiplier": 2.00,
+                "description": "Sunday night premium",
+            },
         ]
         
         for rule_data in default_rules:
             rule = PayRule(
-                rule_name=rule_data["rule_type"].replace("_", " ").title(),
+                rule_name=rule_data["rule_name"],
                 rule_type=rule_data["rule_type"],
                 multiplier=rule_data["multiplier"],
                 description=rule_data["description"],
@@ -1677,30 +2078,7 @@ def recalculate_all_shifts():
             query = query.filter(Shift.shift_date <= datetime.strptime(end_date, "%Y-%m-%d").date())
         
         shifts = query.all()
-        updated_count = 0
-        skipped_count = 0
-        
-        for shift in shifts:
-            try:
-                # Recalculate using new system
-                pay_calc = calculate_shift_pay(
-                    shift.analyst_id,
-                    shift.shift_date,
-                    shift.start_time,
-                    shift.end_time,
-                    shift.shift_type
-                )
-                
-                # Update shift with new calculations
-                shift.hours_worked = pay_calc['total_hours']
-                shift.pay_multiplier = pay_calc['avg_multiplier']
-                shift.base_pay = pay_calc['base_pay']
-                shift.total_pay = pay_calc['total_pay']
-                
-                updated_count += 1
-            except Exception as e:
-                app.logger.warning(f"Failed to recalculate shift {shift.id}: {str(e)}")
-                skipped_count += 1
+        updated_count, skipped_count = recalculate_shift_records(shifts)
         
         db.session.commit()
         
@@ -2059,7 +2437,7 @@ def get_team_payroll_summary():
 @app.route("/api/init", methods=["POST"])
 @role_required(*PAY_RULE_ROLES)
 def initialize_database():
-    """Initialize database with default pay rules"""
+    """Initialize database with scoped default pay rules."""
     try:
         db.create_all()
 
@@ -2067,22 +2445,28 @@ def initialize_database():
         if PayRule.query.count() == 0:
             default_rules = [
                 PayRule(
-                    rule_name="Sunday Premium",
-                    day_of_week=6,  # Sunday
-                    multiplier=1.75,
-                    description="Sunday shifts: +75% pay",
-                ),
-                PayRule(
-                    rule_name="Saturday Premium",
-                    day_of_week=5,  # Saturday
-                    multiplier=1.5,
-                    description="Saturday shifts: +50% pay",
-                ),
-                PayRule(
-                    rule_name="Weekday Regular",
-                    day_of_week=None,
+                    rule_name="Default Base",
+                    rule_type=build_scoped_rule_type(None, None, None),
                     multiplier=1.0,
-                    description="Weekday shifts: regular pay",
+                    description="Default multiplier for all days and all hours",
+                ),
+                PayRule(
+                    rule_name="Sunday Premium",
+                    rule_type=build_scoped_rule_type(6, None, None),
+                    multiplier=1.75,
+                    description="Sunday all-day premium",
+                ),
+                PayRule(
+                    rule_name="Night Premium",
+                    rule_type=build_scoped_rule_type(None, "22:00", "06:00"),
+                    multiplier=1.25,
+                    description="Night hours premium",
+                ),
+                PayRule(
+                    rule_name="Sunday Night Premium",
+                    rule_type=build_scoped_rule_type(6, "22:00", "06:00"),
+                    multiplier=2.0,
+                    description="Sunday night premium",
                 ),
             ]
 

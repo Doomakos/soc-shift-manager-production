@@ -81,8 +81,8 @@ export default function Register() {
 
     if (success) {
         return (
-            <div className="min-h-screen bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center p-4">
-                <div className="bg-white rounded-lg shadow-2xl p-8 w-full max-w-md text-center">
+            <div className="min-h-screen bg-gradient-to-br from-slate-800 via-blue-800 to-slate-900 flex items-center justify-center p-4">
+                <div className="surface-card w-full max-w-md p-8 text-center shadow-2xl">
                     <CheckCircle className="mx-auto text-green-500 mb-4" size={64} />
                     <h2 className="text-2xl font-bold text-gray-800 mb-4">Registration Successful!</h2>
                     <p className="text-gray-600 mb-6">
@@ -98,8 +98,8 @@ export default function Register() {
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center p-4">
-            <div className="bg-white rounded-lg shadow-2xl p-8 w-full max-w-md">
+        <div className="min-h-screen bg-gradient-to-br from-slate-800 via-blue-800 to-slate-900 flex items-center justify-center p-4">
+            <div className="surface-card w-full max-w-md p-8 shadow-2xl">
                 {/* Header */}
                 <div className="text-center mb-8">
                     <div className="inline-flex items-center justify-center w-16 h-16 bg-indigo-100 rounded-full mb-4">

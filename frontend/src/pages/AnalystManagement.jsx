@@ -85,9 +85,9 @@ export default function AnalystManagement() {
     }
 
     return (
-        <div className="container mx-auto p-6">
+        <div className="app-page">
             <div className="flex justify-between items-center mb-6">
-                <h1 className="text-3xl font-bold">SOC Analysts Management</h1>
+                <h1 className="page-title">SOC Analysts Management</h1>
                 <button
                     onClick={() => {
                         setShowForm(!showForm);
@@ -100,7 +100,7 @@ export default function AnalystManagement() {
                             base_hourly_rate: '',
                         });
                     }}
-                    className="bg-blue-500 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-600"
+                    className="btn-primary"
                 >
                     <Plus size={20} /> Add Analyst
                 </button>
@@ -115,7 +115,7 @@ export default function AnalystManagement() {
             {showForm && (
                 <form
                     onSubmit={handleSubmit}
-                    className="bg-white p-6 rounded-lg shadow-md mb-6 border-l-4 border-blue-500"
+                    className="surface-card mb-6 border-l-4 border-blue-500 p-6"
                 >
                     <h2 className="text-xl font-semibold mb-4">
                         {editingId ? 'Edit Analyst' : 'Add New Analyst'}
@@ -192,7 +192,7 @@ export default function AnalystManagement() {
                     <div className="flex gap-2 mt-4">
                         <button
                             type="submit"
-                            className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+                            className="rounded-md bg-emerald-600 px-4 py-2 text-white hover:bg-emerald-700"
                         >
                             {editingId ? 'Update' : 'Create'}
                         </button>
@@ -202,7 +202,7 @@ export default function AnalystManagement() {
                                 setShowForm(false);
                                 setEditingId(null);
                             }}
-                            className="bg-gray-300 text-gray-800 px-4 py-2 rounded hover:bg-gray-400"
+                            className="btn-secondary"
                         >
                             Cancel
                         </button>
@@ -219,7 +219,7 @@ export default function AnalystManagement() {
                     analysts.map((analyst) => (
                         <div
                             key={analyst.id}
-                            className="bg-white p-4 rounded-lg shadow-md border-l-4 border-indigo-500"
+                            className="surface-card border-l-4 border-indigo-500 p-4"
                         >
                             <div className="flex justify-between items-start">
                                 <div className="flex-1">
@@ -228,8 +228,8 @@ export default function AnalystManagement() {
                                             {analyst.first_name} {analyst.last_name}
                                         </h3>
                                         <span className={`px-2 py-1 rounded text-xs font-semibold ${analyst.analyst_level === 'L2'
-                                                ? 'bg-purple-100 text-purple-800'
-                                                : 'bg-blue-100 text-blue-800'
+                                            ? 'bg-purple-100 text-purple-800'
+                                            : 'bg-blue-100 text-blue-800'
                                             }`}>
                                             {analyst.analyst_level || 'L1'}
                                         </span>

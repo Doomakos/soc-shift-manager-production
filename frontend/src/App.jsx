@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, Link, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Link, NavLink, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Setup from './pages/Setup';
@@ -16,100 +16,149 @@ import StandbyManagement from './pages/StandbyManagement';
 import UserManagement from './pages/UserManagement';
 import Profile from './pages/Profile';
 import axios from 'axios';
+import {
+    BarChart3,
+    CalendarDays,
+    Clock3,
+    Home as HomeIcon,
+    LayoutDashboard,
+    Menu,
+    Settings,
+    Shield,
+    User,
+    UserCog,
+    Users,
+    X,
+} from 'lucide-react';
 
 const AUTH_API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
 
 // Navigation component with role-aware UI
 function Navigation() {
     const { isAuthenticated, user, logout, hasRole } = useAuth();
+    const [mobileOpen, setMobileOpen] = useState(false);
+    const location = useLocation();
 
     // Define role-based visibility
     const canManage = hasRole('admin', 'soc_manager', 'shift_coordinator');
     const canViewPayRules = hasRole('admin', 'soc_manager');
     const canViewAdvanced = hasRole('admin', 'soc_manager', 'shift_coordinator');
 
+    useEffect(() => {
+        setMobileOpen(false);
+    }, [location.pathname]);
+
+    const navItems = [
+        { to: '/', label: 'Home', icon: HomeIcon, show: true },
+        { to: '/analysts', label: 'Analysts', icon: Users, show: canManage },
+        { to: '/shifts', label: 'Shifts', icon: LayoutDashboard, show: canManage },
+        { to: '/calendar-standard', label: 'Calendar', icon: CalendarDays, show: true },
+        { to: '/calendar-advanced', label: 'Advanced', icon: Settings, show: canViewAdvanced },
+        { to: '/analytics', label: 'Analytics', icon: BarChart3, show: true },
+        { to: '/pay-rules', label: 'Pay Rules', icon: Shield, show: canViewPayRules },
+        { to: '/standby', label: 'L2 Standby', icon: Clock3, show: canManage },
+        { to: '/users', label: 'Users', icon: UserCog, show: canViewPayRules },
+    ].filter((item) => item.show);
+
+    const getNavClass = ({ isActive }) => (
+        isActive
+            ? 'text-white bg-white/20 rounded-md px-3 py-2 transition-colors'
+            : 'text-blue-50 hover:text-white hover:bg-white/10 rounded-md px-3 py-2 transition-colors'
+    );
+
     return (
-        <nav className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg">
-            <div className="container mx-auto px-6 py-4 flex justify-between items-center">
-                <Link to="/" className="text-2xl font-bold">
-                    🔐 SOC Shift Manager
-                </Link>
+        <nav className="sticky top-0 z-30 bg-gradient-to-r from-slate-800 via-slate-700 to-blue-900 text-white shadow-lg">
+            <div className="container mx-auto px-4 py-3 lg:px-6 lg:py-4">
+                <div className="flex items-center justify-between gap-4">
+                    <Link to="/" className="flex items-center gap-2 text-lg font-semibold tracking-wide lg:text-xl">
+                        <span className="rounded-md bg-white/15 p-2">
+                            <Shield size={18} />
+                        </span>
+                        <span>SOC Shift Manager</span>
+                    </Link>
+
+                    {isAuthenticated && (
+                        <button
+                            type="button"
+                            className="rounded-md p-2 text-blue-50 hover:bg-white/10 lg:hidden"
+                            onClick={() => setMobileOpen((open) => !open)}
+                            aria-label="Toggle navigation menu"
+                        >
+                            {mobileOpen ? <X size={20} /> : <Menu size={20} />}
+                        </button>
+                    )}
+                </div>
 
                 {isAuthenticated ? (
                     <>
-                        <div className="flex gap-6">
-                            <Link to="/" className="hover:text-blue-100 transition-colors">
-                                Home
-                            </Link>
+                        <div className="mt-4 hidden items-center justify-between gap-4 lg:flex">
+                            <div className="flex flex-wrap items-center gap-2">
+                                {navItems.map((item) => {
+                                    const Icon = item.icon;
+                                    return (
+                                        <NavLink key={item.to} to={item.to} className={getNavClass}>
+                                            <span className="inline-flex items-center gap-2 text-sm font-medium">
+                                                <Icon size={15} />
+                                                {item.label}
+                                            </span>
+                                        </NavLink>
+                                    );
+                                })}
+                            </div>
 
-                            {/* Analysts & Shifts - Management roles only */}
-                            {canManage && (
-                                <>
-                                    <Link to="/analysts" className="hover:text-blue-100 transition-colors">
-                                        Analysts
-                                    </Link>
-                                    <Link to="/shifts" className="hover:text-blue-100 transition-colors">
-                                        Shifts
-                                    </Link>
-                                </>
-                            )}
-
-                            {/* Standard Calendar - All authenticated users */}
-                            <Link to="/calendar-standard" className="hover:text-blue-100 transition-colors">
-                                📅 Calendar
-                            </Link>
-
-                            {/* Advanced Calendar - Management roles only */}
-                            {canViewAdvanced && (
-                                <Link to="/calendar-advanced" className="hover:text-blue-100 transition-colors">
-                                    ⚡ Advanced
-                                </Link>
-                            )}
-
-                            {/* Analytics - All authenticated users (own data for analysts) */}
-                            <Link to="/analytics" className="hover:text-blue-100 transition-colors">
-                                Analytics
-                            </Link>
-
-                            {/* Pay Rules - Admin + SOC Manager only */}
-                            {canViewPayRules && (
-                                <Link to="/pay-rules" className="hover:text-blue-100 transition-colors">
-                                    Pay Rules
-                                </Link>
-                            )}
-
-                            {/* Standby - Management roles only */}
-                            {canManage && (
-                                <Link to="/standby" className="hover:text-blue-100 transition-colors">
-                                    🚨 L2 Standby
-                                </Link>
-                            )}
-
-                            {/* User Management - Admin and SOC Manager only */}
-                            {canViewPayRules && (
-                                <Link to="/users" className="hover:text-blue-100 transition-colors">
-                                    👥 Users
-                                </Link>
-                            )}
+                            <div className="flex items-center gap-3">
+                                <NavLink
+                                    to="/profile"
+                                    className="inline-flex items-center gap-2 rounded-md bg-white/10 px-3 py-2 text-sm text-blue-50 hover:bg-white/20"
+                                >
+                                    <User size={14} />
+                                    {user?.username} ({user?.role})
+                                </NavLink>
+                                <button
+                                    onClick={logout}
+                                    className="rounded-md bg-rose-500 px-4 py-2 text-sm font-semibold hover:bg-rose-600 transition-colors"
+                                >
+                                    Logout
+                                </button>
+                            </div>
                         </div>
 
-                        <div className="flex items-center gap-4">
-                            <Link to="/profile" className="text-sm hover:text-blue-100 transition-colors">
-                                👤 {user?.username} ({user?.role})
-                            </Link>
-                            <button
-                                onClick={logout}
-                                className="bg-red-500 hover:bg-red-600 px-4 py-2 rounded transition-colors"
-                            >
-                                Logout
-                            </button>
-                        </div>
+                        {mobileOpen && (
+                            <div className="mt-3 space-y-2 rounded-lg border border-white/15 bg-slate-800/80 p-3 backdrop-blur lg:hidden">
+                                {navItems.map((item) => {
+                                    const Icon = item.icon;
+                                    return (
+                                        <NavLink key={item.to} to={item.to} className={getNavClass}>
+                                            <span className="inline-flex items-center gap-2 text-sm font-medium">
+                                                <Icon size={15} />
+                                                {item.label}
+                                            </span>
+                                        </NavLink>
+                                    );
+                                })}
+
+                                <NavLink
+                                    to="/profile"
+                                    className="inline-flex w-full items-center gap-2 rounded-md bg-white/10 px-3 py-2 text-sm text-blue-50 hover:bg-white/20"
+                                >
+                                    <User size={14} />
+                                    {user?.username} ({user?.role})
+                                </NavLink>
+
+                                <button
+                                    onClick={logout}
+                                    className="w-full rounded-md bg-rose-500 px-4 py-2 text-sm font-semibold hover:bg-rose-600 transition-colors"
+                                >
+                                    Logout
+                                </button>
+                            </div>
+                        )}
                     </>
                 ) : (
-                    <div className="flex gap-4">
+                    <div className="mt-3 flex justify-end">
                         <Link
                             to="/login"
-                            className="bg-white text-blue-600 px-4 py-2 rounded hover:bg-gray-100 transition-colors"
+                            className="rounded-md bg-white px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-100 transition-colors"
                         >
                             Login
                         </Link>
@@ -163,7 +212,7 @@ function App() {
     return (
         <AuthProvider>
             <Router>
-                <div className="min-h-screen bg-gray-100">
+                <div className="min-h-screen">
                     <Navigation />
 
                     <Routes>

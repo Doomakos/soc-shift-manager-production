@@ -74,14 +74,14 @@ export default function Home() {
     const features = allFeatures.filter(feature => feature.show);
 
     return (
-        <div className="container mx-auto p-6">
+        <div className="app-page">
             <div className="mb-8">
                 <div className="flex items-center gap-3 mb-4">
                     <div className="h-12 w-12 bg-indigo-600 rounded-lg flex items-center justify-center">
                         <span className="text-white font-bold text-xl">SH</span>
                     </div>
                     <div>
-                        <h1 className="text-3xl font-bold text-gray-800">Space Hellas S.A.</h1>
+                        <h1 className="page-title">Space Hellas S.A.</h1>
                         <p className="text-gray-500 text-sm">SOC Level 1 Shift Management System</p>
                     </div>
                 </div>
@@ -93,12 +93,12 @@ export default function Home() {
                 </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
                 {features.map((feature) => {
                     const Icon = feature.icon;
                     return (
                         <Link key={feature.title} to={feature.link}>
-                            <div className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow h-full cursor-pointer">
+                            <div className="surface-card h-full cursor-pointer p-6 transition-shadow hover:shadow-lg">
                                 <div
                                     className={`${feature.color} text-white p-3 rounded-lg w-fit mb-4`}
                                 >
@@ -112,7 +112,7 @@ export default function Home() {
                 })}
             </div>
 
-            <div className="mt-8 bg-gray-50 border border-gray-200 p-6 rounded-lg">
+            <div className="surface-card-soft mt-8 p-6">
                 <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2">System Information</h2>
                 <p className="text-gray-700 text-sm">
                     This platform tracks shift assignments and calculates Greek labor law compliant pay multipliers for SOC Level 1 analysts. All shift data is stored with complete historical records for audit and payroll processing.
