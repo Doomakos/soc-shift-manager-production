@@ -1,5 +1,5 @@
 # Fly.io configuration for SOC Shift Manager
-app = "soc-shift-manager"
+app = "soc-shift-manager-gstratis-2026"
 primary_region = "iad"
 
 [build]
