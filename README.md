@@ -4,6 +4,31 @@ SOC Shift Manager is a web application for SOC shift operations, analyst schedul
 
 This guide is written for first-time users and beta testers.
 
+## Branches
+
+| Branch    | Purpose                              | Recommended for          |
+|-----------|--------------------------------------|--------------------------|
+| `stable`  | Lab-tested, confirmed working builds | Beta testers / production |
+| `develop` | Latest features, may be experimental | Early adopters / testing  |
+| `main`    | Mirrors `develop` (active dev)       | Developers               |
+
+**To use the stable release:**
+```bash
+git clone https://github.com/Doomakos/soc-shift-manager-production.git
+cd soc-shift-manager-production
+git checkout stable
+docker compose up --build
+```
+
+**To try the latest experimental features:**
+```bash
+git checkout develop
+git pull origin develop
+docker compose up --build
+```
+
+---
+
 ## Current Beta Status
 
 - Single image build is available from root Dockerfile.
